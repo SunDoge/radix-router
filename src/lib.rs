@@ -1,3 +1,6 @@
+extern crate aho_corasick;
+extern crate hyper;
+
 pub mod router;
 
 #[cfg(test)]

@@ -1,3 +1,7 @@
+use hyper::{Body, Request, Response};
+
+pub type Handle = fn(Request<Body>) -> Response<Body>;
+
 #[derive(Debug)]
 pub struct Param {
     key: String,
@@ -37,7 +41,11 @@ impl Router {
 
     pub fn serve_files() {}
 
-    pub fn handle() {}
+    pub fn handle(&mut self, method: &str, path: &str, handle: Handle) {
+        if !path.starts_with("/") {
+            panic!("path must begin with '/' in path '{}'", path);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -59,5 +67,17 @@ mod tests {
 
         assert_eq!(Some(String::from("you")), params.by_name("fuck"));
         assert_eq!(Some(String::from("papapa")), params.by_name("lalala"));
+    }
+
+    #[test]
+    #[should_panic(expected = "path must begin with '/' in path 'something'")]
+    fn handle_ivalid_path() {
+        use hyper::{Body, Response};
+        use router::Router;
+
+        let path = "something";
+        let mut router = Router::new();
+
+        router.handle("GET", path, |_req| Response::new(Body::from("something")));
     }
 }
