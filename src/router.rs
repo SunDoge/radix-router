@@ -39,7 +39,11 @@ impl Router {
 
     pub fn group() {}
 
-    pub fn serve_files() {}
+    pub fn serve_files(&mut self, path: &str) {
+        if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
+            panic!("path must end with /*filepath in path '{}'", path);
+        }
+    }
 
     pub fn handle(&mut self, method: &str, path: &str, handle: Handle) {
         if !path.starts_with("/") {
