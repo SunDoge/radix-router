@@ -16,6 +16,30 @@ impl Params {
     }
 }
 
+pub struct Router {}
+
+impl Router {
+    pub fn new() -> Router {
+        Router {}
+    }
+
+    pub fn get() {}
+
+    pub fn post() {}
+
+    pub fn put() {}
+
+    pub fn patch() {}
+
+    pub fn delete() {}
+
+    pub fn group() {}
+
+    pub fn serve_files() {}
+
+    pub fn handle() {}
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
