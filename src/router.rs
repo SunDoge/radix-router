@@ -1,7 +1,7 @@
 // use http::{Request, Response};
 use hyper::{Body, Request, Response};
 
-pub type Handle<T> = fn(Request<T>) -> Response<T>;
+pub type Handle = fn(Request<Body>) -> Response<Body>;
 
 #[derive(Debug, Clone)]
 pub struct Param {
@@ -46,7 +46,7 @@ impl Router {
         }
     }
 
-    pub fn handle<T>(&mut self, method: &str, path: &str, handle: Handle<T>) {
+    pub fn handle(&mut self, method: &str, path: &str, handle: Handle) {
         if !path.starts_with("/") {
             panic!("path must begin with '/' in path '{}'", path);
         }
@@ -77,12 +77,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "path must begin with '/' in path 'something'")]
     fn handle_ivalid_path() {
-        use http::Response;
+        // use http::Response;
+        use hyper::{Response, Body};
         use router::Router;
 
         let path = "something";
         let mut router = Router::new();
 
-        router.handle("GET", path, |_req| Response::new(()));
+        router.handle("GET", path, |_req| Response::new(Body::from("test")));
     }
 }
