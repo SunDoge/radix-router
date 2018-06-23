@@ -1,15 +1,16 @@
-use http::{Request, Response};
+// use http::{Request, Response};
+use hyper::{Body, Request, Response};
 
 pub type Handle<T> = fn(Request<T>) -> Response<T>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Param {
-    key: String,
-    value: String,
+    pub key: String,
+    pub value: String,
 }
 
 #[derive(Debug)]
-pub struct Params(Vec<Param>);
+pub struct Params(pub Vec<Param>);
 
 impl Params {
     pub fn by_name(&self, name: &str) -> Option<String> {
@@ -76,7 +77,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "path must begin with '/' in path 'something'")]
     fn handle_ivalid_path() {
-        use http::{Response};
+        use http::Response;
         use router::Router;
 
         let path = "something";

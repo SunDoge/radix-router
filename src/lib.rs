@@ -1,4 +1,5 @@
 extern crate http;
+extern crate hyper;
 
 pub mod router;
 pub mod tree;
