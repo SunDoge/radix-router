@@ -1,3 +1,7 @@
 extern crate acrouter;
 
-fn main() {}
+use acrouter::router::Router;
+
+fn main() {
+    let _router = Router::new();
+}
