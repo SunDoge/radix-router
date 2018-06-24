@@ -1,6 +1,4 @@
 use router::{Handle, Param, Params};
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::str;
 
 fn min(a: usize, b: usize) -> usize {
@@ -33,19 +31,19 @@ pub enum NodeType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Node {
+pub struct Node<T> {
     path: Vec<u8>,
     wild_child: bool,
     n_type: NodeType,
     max_params: u8,
     indices: Vec<u8>,
-    children: Vec<Box<Node>>,
-    handle: Option<Handle>,
+    children: Vec<Box<Node<T>>>,
+    handle: Option<T>,
     priority: u32,
 }
 
-impl Node {
-    pub fn new() -> Node {
+impl<T> Node<T> {
+    pub fn new() -> Node<T> {
         Node {
             path: Vec::new(),
             wild_child: false,
