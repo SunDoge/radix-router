@@ -14,6 +14,7 @@ fn main() {
     let _router = Router::new();
     let mut node = Node::new();
     node.add_route("/something".as_bytes(), fake_handle);
+    node.add_route("/something/else".as_bytes(), fake_handle);
     println!("{:?}", node);
     // node.add_route();extern crate http;
 }
