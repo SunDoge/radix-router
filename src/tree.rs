@@ -1,7 +1,7 @@
 use router::{Handle, Param, Params};
+use std::fmt::Debug;
 use std::mem;
 use std::str;
-use std::fmt::Debug;
 
 fn min(a: usize, b: usize) -> usize {
     if a <= b {
@@ -33,10 +33,7 @@ pub enum NodeType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Node<T>
-where
-    T: Copy + Debug,
-{
+pub struct Node<T> {
     path: Vec<u8>,
     wild_child: bool,
     n_type: NodeType,
@@ -47,10 +44,7 @@ where
     priority: u32,
 }
 
-impl<T> Node<T>
-where
-    T: Copy + Debug,
-{
+impl<T> Node<T> {
     pub fn new() -> Node<T> {
         Node {
             path: Vec::new(),
@@ -423,20 +417,20 @@ where
             self.handle = Some(handle);
         }
     }
-    pub fn get_value(&mut self, path: &str) -> (Option<T>, Option<Params>, bool) {
-        let mut handle = None;
+    pub fn get_value(&mut self, path: &str) -> (Option<&T>, Option<Params>, bool) {
+        // let mut handle = None;
         let mut p = None;
         let mut tsr = false;
-        self.get_value_loop(path.as_ref(), handle, p, tsr)
+        self.get_value_loop(path.as_ref(), p, tsr)
     }
 
     fn get_value_loop(
         &mut self,
         mut path: &[u8],
-        handle: Option<T>,
+
         mut p: Option<Params>,
         mut tsr: bool,
-    ) -> (Option<T>, Option<Params>, bool) {
+    ) -> (Option<&T>, Option<Params>, bool) {
         if path.len() > self.path.len() {
             if self.path == &path[..self.path.len()] {
                 path = &path[self.path.len()..];
@@ -444,24 +438,24 @@ where
                     let c = path[0];
                     for i in 0..self.indices.len() {
                         if c == self.indices[i] {
-                            return self.children[i].get_value_loop(path, handle, p, tsr);
+                            return self.children[i].get_value_loop(path, p, tsr);
                         }
                     }
 
                     tsr = path == [b'/'] && self.handle.is_some();
-                    return (handle, p, tsr);
+                    return (self.handle.as_ref(), p, tsr);
                 }
 
-                return self.children[0].handle_wildcard_child(path, handle, p, tsr);
+                return self.children[0].handle_wildcard_child(path, p, tsr);
             }
         } else if self.path == path {
             if self.handle.is_some() {
-                return (handle, p, tsr);
+                return (self.handle.as_ref(), p, tsr);
             }
 
             if path == [b'/'] && self.wild_child && self.n_type != NodeType::Root {
                 tsr = true;
-                return (handle, p, tsr);
+                return (self.handle.as_ref(), p, tsr);
             }
 
             for i in 0..self.indices.len() {
@@ -469,21 +463,20 @@ where
                     tsr = (self.path.len() == 1 && self.children[i].handle.is_some())
                         || (self.children[i].n_type == NodeType::CatchAll
                             && self.children[i].children[0].handle.is_some());
-                    return (handle, p, tsr);
+                    return (self.handle.as_ref(), p, tsr);
                 }
             }
         }
 
-        return (handle, p, tsr);
+        return (self.handle.as_ref(), p, tsr);
     }
 
     fn handle_wildcard_child(
         &mut self,
         mut path: &[u8],
-        handle: Option<T>,
         mut p: Option<Params>,
         mut tsr: bool,
-    ) -> (Option<T>, Option<Params>, bool) {
+    ) -> (Option<&T>, Option<Params>, bool) {
         match self.n_type {
             NodeType::Param => {
                 let mut end = 0;
@@ -506,20 +499,20 @@ where
                     if self.children.len() > 0 {
                         path = &path[end..];
 
-                        return self.children[0].get_value_loop(path, handle, p, tsr);
+                        return self.children[0].get_value_loop(path, p, tsr);
                     }
 
                     tsr = path.len() == end + 1;
-                    return (handle, p, tsr);
+                    return (self.handle.as_ref(), p, tsr);
                 }
 
                 if self.handle.is_some() {
-                    return (handle, p, tsr);
+                    return (self.handle.as_ref(), p, tsr);
                 } else if self.children.len() == 1 {
                     tsr = self.children[0].path == &[b'/'] && self.children[0].handle.is_some();
                 }
 
-                return (handle, p, tsr);
+                return (self.handle.as_ref(), p, tsr);
             }
             NodeType::CatchAll => {
                 if p.is_none() {
@@ -533,7 +526,7 @@ where
                     });
                 });
 
-                return (self.handle, p, tsr);
+                return (self.handle.as_ref(), p, tsr);
             }
             _ => panic!("invalid node type"),
         }

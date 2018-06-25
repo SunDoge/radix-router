@@ -1,6 +1,7 @@
 // use http::{Request, Response};
 use hyper::{Body, Request, Response};
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use tree::Node;
 
 pub type Handle = fn(Request<Body>) -> Response<Body>;
@@ -23,12 +24,12 @@ impl Params {
     }
 }
 
-pub struct Router {
-    trees: BTreeMap<String, Node<Handle>>,
+pub struct Router<T> {
+    pub trees: BTreeMap<String, Node<T>>,
 }
 
-impl Router {
-    pub fn new() -> Router {
+impl<T> Router<T> {
+    pub fn new() -> Router<T> {
         Router {
             trees: BTreeMap::new(),
         }
@@ -52,15 +53,24 @@ impl Router {
         }
     }
 
-    pub fn handle(&mut self, method: &str, path: &str, handle: Handle) {
+    pub fn handle(&mut self, method: &str, path: &str, handle: T) {
         if !path.starts_with("/") {
             panic!("path must begin with '/' in path '{}'", path);
         }
 
         self.trees
-            .get_mut(method)
-            .get_or_insert(&mut Node::new())
+            .entry(method.to_string())
+            .or_insert(Node::new())
             .add_route(path, handle);
+    }
+
+    pub fn lookup(&mut self, method: &str, path: &str) -> (Option<&T>, Option<Params>, bool) {
+        self.trees
+            .get_mut(method)
+            .and_then(|n| {
+                Some(n.get_value(path))
+            })
+            .unwrap_or((None, None, false))
     }
 }
 
