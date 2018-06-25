@@ -1,8 +1,10 @@
 // use http::{Request, Response};
+use futures::{future, Future, IntoFuture};
+use hyper::error::Error;
+use hyper::service::Service;
 use hyper::{Body, Request, Response};
 use std::collections::BTreeMap;
 use tree::Node;
-
 // pub type Handle = fn(Request<Body>) -> Response<Body>;
 
 #[derive(Debug, Clone)]
@@ -68,6 +70,31 @@ impl<T> Router<T> {
             .get_mut(method)
             .and_then(|n| Some(n.get_value(path)))
             .unwrap_or((None, None, false))
+    }
+}
+
+impl<T> Service for Router<T> where T: Fn(Request<Body>, Option<Params>) -> Response<Body> {
+    type ReqBody = Body;
+    type ResBody = Body;
+    type Error = Error;
+    type Future = future::FutureResult<Response<Self::ResBody>, Self::Error>;
+
+    fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
+        let (handle, p, _) = self.lookup(req.method().as_str(), req.uri().path());
+        match handle {
+            Some(h) => future::ok(h(req, p)),
+            _ => future::ok(Response::new(Body::from("not found"))),
+        }
+    }
+}
+
+impl<T> IntoFuture for Router<T> {
+    type Future = future::FutureResult<Self::Item, Self::Error>;
+    type Item = Self;
+    type Error = Error;
+
+    fn into_future(self) -> Self::Future {
+        future::ok(self)
     }
 }
 

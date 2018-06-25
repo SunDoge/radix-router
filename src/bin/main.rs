@@ -1,34 +1,49 @@
 extern crate acrouter;
-// extern crate http;
 extern crate hyper;
+extern crate pretty_env_logger;
 
-use acrouter::{router::Router, tree::Node};
-// use http::{Request, Response};
-use hyper::{Body, Request, Response};
+use acrouter::router::Params;
+use acrouter::router::Router;
+use hyper::rt::{self, Future};
+use hyper::service::service_fn_ok;
+use hyper::{Body, Request, Response, Server};
 
-// fn fake_handle(req: Request<Body>) -> Response<Body> {
-//     Response::new(Body::from("test"))
-// }
+// static PHRASE: &'static [u8] = b"Hello World!";
+type Handle = fn(Request<Body>, Option<Params>) -> Response<Body>;
 
-// fn fake_handle(req: u32) -> u32 {
-//     12
-// }
-struct Faker {}
+fn get_echo(_: Request<Body>, _: Option<Params>) -> Response<Body> {
+    Response::new(Body::from("Try POSTing data to /echo"))
+}
 
-impl Faker {
-    pub fn call(&self) {
-        println!("call");
-    }
+fn post_echo(req: Request<Body>, _: Option<Params>) -> Response<Body> {
+    Response::new(req.into_body())
 }
 
 fn main() {
-    // let fake_handle = 1;
-    let mut router = Router::new();
-    router.handle("GET", "/post", Faker{});
-    // println!("{:#?}", router.trees);
-    let (handle, params, tsr) = router.lookup("GET", "/post");
-    match handle {
-        Some(h) => h.call(),
-        None => println!("None"),
-    }
+    pretty_env_logger::init();
+
+    let addr = ([127, 0, 0, 1], 3000).into();
+
+    // new_service is run for each connection, creating a 'service'
+    // to handle requests for that specific connection.
+    let new_service = || {
+        // This is the `Service` that will handle the connection.
+        // `service_fn_ok` is a helper to convert a function that
+        // returns a Response into a `Service`.
+        // service_fn_ok(|_| {
+        //     Response::new(Body::from(PHRASE))
+        // })
+        let mut router: Router<Handle> = Router::new();
+        router.handle("GET", "/echo", get_echo);
+        router.handle("POST", "/echo", post_echo);
+        router
+    };
+
+    let server = Server::bind(&addr)
+        .serve(new_service)
+        .map_err(|e| eprintln!("server error: {}", e));
+
+    println!("Listening on http://{}", addr);
+
+    rt::run(server);
 }

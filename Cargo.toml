@@ -7,3 +7,4 @@ authors = ["SunDoge <384813529@qq.com>"]
 http = "0.1"
 hyper = "0.12"
 futures = "0.1"
+pretty_env_logger = "0.2.3"

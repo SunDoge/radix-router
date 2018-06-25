@@ -212,8 +212,7 @@ impl<T> Node<T> {
 
         // Check if the wildcard matches
 
-        if path.len() >= self.path.len()
-            && self.path == &path[..self.path.len()]
+        if path.len() >= self.path.len() && self.path == &path[..self.path.len()]
             && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
         {
             self.add_route_loop(num_params, path, full_path, handle);
