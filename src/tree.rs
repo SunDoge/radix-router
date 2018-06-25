@@ -1,4 +1,4 @@
-use router::{Handle, Param, Params};
+use router::{Param, Params};
 use std::fmt::Debug;
 use std::mem;
 use std::str;

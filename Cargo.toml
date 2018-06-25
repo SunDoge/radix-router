@@ -6,3 +6,4 @@ authors = ["SunDoge <384813529@qq.com>"]
 [dependencies]
 http = "0.1"
 hyper = "0.12"
+futures = "0.1"
