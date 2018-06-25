@@ -35,7 +35,7 @@ pub enum NodeType {
 #[derive(Debug, Clone)]
 pub struct Node<T>
 where
-    T: Clone + Debug,
+    T: Copy + Debug,
 {
     path: Vec<u8>,
     wild_child: bool,
@@ -49,7 +49,7 @@ where
 
 impl<T> Node<T>
 where
-    T: Clone + Debug,
+    T: Copy + Debug,
 {
     pub fn new() -> Node<T> {
         Node {
@@ -533,7 +533,7 @@ where
                     });
                 });
 
-                return (self.handle.clone(), p, tsr);
+                return (self.handle, p, tsr);
             }
             _ => panic!("invalid node type"),
         }
@@ -544,7 +544,7 @@ where
 mod tests {
     #[test]
     fn it_works() {
-        use tree::Node;
-        let mut node = Node::new();
+        // use tree::Node;
+        // let mut node = Node::new();
     }
 }
