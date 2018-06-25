@@ -134,6 +134,10 @@ impl<T> Node<T> {
             .take_while(|&(a, b)| a == b)
             .count()
     }
+
+    pub fn add_route<P: AsRef<[u8]>>(&mut self, path: P, handle: T) {
+        
+    }
 }
 
 #[cfg(test)]
