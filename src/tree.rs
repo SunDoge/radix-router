@@ -1,6 +1,7 @@
 use router::{Handle, Param, Params};
 use std::mem;
 use std::str;
+use std::fmt::Debug;
 
 fn min(a: usize, b: usize) -> usize {
     if a <= b {
@@ -34,7 +35,7 @@ pub enum NodeType {
 #[derive(Debug, Clone)]
 pub struct Node<T>
 where
-    T: Clone,
+    T: Clone + Debug,
 {
     path: Vec<u8>,
     wild_child: bool,
@@ -48,7 +49,7 @@ where
 
 impl<T> Node<T>
 where
-    T: Clone,
+    T: Clone + Debug,
 {
     pub fn new() -> Node<T> {
         Node {
@@ -278,9 +279,10 @@ where
                 }
             }
 
-            println!("self path: {}", str::from_utf8(&self.path).unwrap());
-            println!("temp path: {}", str::from_utf8(path).unwrap());
-            println!("children: {}", self.children.len());
+            // println!("self path: {}", str::from_utf8(&self.path).unwrap());
+            // println!("temp path: {}", str::from_utf8(path).unwrap());
+            // println!("self {:?}", self.children[0]);
+            // println!("self {:?}", self.children.len());
 
             // check if this Node existing children which would be
             // unreachable if we insert the wildcard here

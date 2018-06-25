@@ -12,10 +12,11 @@ use hyper::{Body, Request, Response};
 
 fn main() {
     let _router = Router::new();
-    let fake_handle = ();
+    let fake_handle = 1;
     let mut node = Node::new();
     node.add_route("/something", fake_handle);
     node.add_route("/something/else", fake_handle);
+    node.add_route("/something/:id", fake_handle);
     println!("{:#?}", node);
     // node.add_route();extern crate http;
 }
