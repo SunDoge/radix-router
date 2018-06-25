@@ -1,4 +1,5 @@
 use router::{Handle, Param, Params};
+use std::mem;
 use std::str;
 
 fn min(a: usize, b: usize) -> usize {
@@ -31,7 +32,10 @@ pub enum NodeType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Node<T> {
+pub struct Node<T>
+where
+    T: Clone,
+{
     path: Vec<u8>,
     wild_child: bool,
     n_type: NodeType,
@@ -42,7 +46,10 @@ pub struct Node<T> {
     priority: u32,
 }
 
-impl<T> Node<T> {
+impl<T> Node<T>
+where
+    T: Clone,
+{
     pub fn new() -> Node<T> {
         Node {
             path: Vec::new(),
@@ -78,12 +85,13 @@ impl<T> Node<T> {
         new_pos
     }
 
-    pub fn add_route(&mut self, path: &[u8], handle: Handle) {
+    pub fn add_route(&mut self, path: &str, handle: T) {
         let full_path = path.clone();
+        let path = path.as_ref();
         self.priority += 1;
         let mut num_params = count_params(path);
         if self.path.len() > 0 || self.children.len() > 0 {
-
+            self.add_route_loop(num_params, path, full_path, handle);
         } else {
             // Empty tree
             self.insert_child(num_params, path, full_path, handle);
@@ -91,17 +99,171 @@ impl<T> Node<T> {
         }
     }
 
-    fn insert_child(&mut self, mut num_params: u8, path: &[u8], full_path: &[u8], handle: Handle) {
-        let mut offset = 0;
-        let mut i = 0;
-        let max = path.len();
+    fn add_route_loop(&mut self, num_params: u8, path: &[u8], full_path: &str, handle: T) {
+        if num_params > self.max_params {
+            self.max_params = num_params;
+        }
 
-        while num_params > 0 {
+        let mut i = 0;
+        let max = min(path.len(), self.path.len());
+
+        while i < max && path[i] == self.path[i] {
+            i += 1;
+        }
+
+        if i < self.path.len() {
+            let mut child = Node {
+                path: self.path[i..].to_vec(),
+                wild_child: self.wild_child,
+                n_type: NodeType::Static,
+                indices: self.indices.clone(),
+                children: Vec::new(),
+                handle: self.handle.take(),
+                priority: self.priority - 1,
+
+                max_params: 0,
+            };
+
+            mem::swap(&mut self.children, &mut child.children);
+
+            for c in &child.children {
+                if c.max_params > child.max_params {
+                    child.max_params = c.max_params;
+                }
+            }
+
+            self.children = vec![Box::new(child)];
+            self.indices = vec![self.path[i]];
+            self.path = path[..i].to_vec();
+            self.wild_child = false;
+        }
+
+        if i < path.len() {
+            let path = &path[i..];
+
+            if self.wild_child {
+                // *n = * {n}.children[0].clone();
+                return self.children[0].is_wild_child(num_params, path, full_path, handle);
+            }
+
+            let c = path[0];
+
+            if self.n_type == NodeType::Param && c == b'/' && self.children.len() == 1 {
+                self.children[0].priority += 1;
+                return self.children[0].add_route_loop(num_params, path, full_path, handle);
+            }
+
+            for mut i in 0..self.indices.len() {
+                if c == self.indices[i] {
+                    i = self.increment_child_prio(i);
+                    return self.children[i].add_route_loop(num_params, path, full_path, handle);
+                }
+            }
+
+            // Otherwise insert it
+
+            if c != b':' && c != b'*' {
+                self.indices.push(c);
+
+                let len = self.indices.len();
+
+                let child: Box<Node<T>> = Box::new(Node {
+                    path: Vec::new(),
+
+                    wild_child: false,
+
+                    n_type: NodeType::Static,
+
+                    max_params: num_params,
+
+                    indices: Vec::new(),
+
+                    children: Vec::new(),
+
+                    handle: None,
+
+                    priority: 0,
+                });
+
+                self.children.push(child);
+
+                let i = self.increment_child_prio(len - 1);
+
+                return self.children[i].insert_child(num_params, path, full_path, handle);
+            }
+
+            return self.insert_child(num_params, path, full_path, handle);
+        } else if i == path.len() {
+            if self.handle.is_some() {
+                panic!("a handle is already registered for path '{}'", full_path);
+            }
+
+            self.handle = Some(handle);
+        }
+
+        return;
+    }
+
+    fn is_wild_child(&mut self, mut num_params: u8, path: &[u8], full_path: &str, handle: T) {
+        self.priority += 1;
+
+        // Update maxParams of the child node
+
+        if num_params > self.max_params {
+            self.max_params = num_params;
+        }
+
+        num_params -= 1;
+
+        // Check if the wildcard matches
+
+        if path.len() >= self.path.len()
+            && self.path == &path[..self.path.len()]
+            && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
+        {
+            self.add_route_loop(num_params, path, full_path, handle);
+        } else {
+            // Wildcard conflict
+
+            let path_seg = if self.n_type == NodeType::CatchAll {
+                str::from_utf8(path).unwrap()
+            } else {
+                str::from_utf8(path)
+                    .unwrap()
+                    .splitn(2, '/')
+                    .into_iter()
+                    .next()
+                    .unwrap()
+            };
+
+            let prefix = [
+                &full_path[..full_path.find(path_seg).unwrap()],
+                str::from_utf8(&self.path).unwrap(),
+            ].concat();
+
+            panic!("'{}' in new path '{}' conflicts with existing wildcard '{}' in existing prefix '{}'", path_seg, full_path, str::from_utf8(&self.path).unwrap(), prefix);
+        }
+    }
+
+    fn insert_child(&mut self, mut num_params: u8, path: &[u8], full_path: &str, handle: T) {
+        self.insert_child_loop(0, 0, num_params, path, full_path, handle);
+    }
+
+    fn insert_child_loop(
+        &mut self,
+        mut offset: usize,
+        mut i: usize,
+        mut num_params: u8,
+        path: &[u8],
+        full_path: &str,
+        handle: T,
+    ) {
+        if num_params > 0 {
+            let max = path.len();
             let c = path[i];
 
             if c != b':' && c != b'*' {
-                i += 1;
-                continue;
+                return self.insert_child_loop(offset, i + 1, num_params, path, full_path, handle);
             }
 
             let mut end = i + 1;
@@ -110,11 +272,15 @@ impl<T> Node<T> {
                     b':' | b'*' => panic!(
                         "only one wildcard per path segment is allowed, has: '{}' in path '{}'",
                         str::from_utf8(&path[i..]).unwrap(),
-                        str::from_utf8(full_path).unwrap()
+                        full_path
                     ),
                     _ => end += 1,
                 }
             }
+
+            println!("self path: {}", str::from_utf8(&self.path).unwrap());
+            println!("temp path: {}", str::from_utf8(path).unwrap());
+            println!("children: {}", self.children.len());
 
             // check if this Node existing children which would be
             // unreachable if we insert the wildcard here
@@ -122,7 +288,7 @@ impl<T> Node<T> {
                 panic!(
                     "wildcard route '{}' conflicts with existing children in path '{}'",
                     str::from_utf8(&path[i..end]).unwrap(),
-                    str::from_utf8(full_path).unwrap(),
+                    full_path
                 )
             }
 
@@ -130,7 +296,7 @@ impl<T> Node<T> {
             if end - i < 2 {
                 panic!(
                     "wildcards must be named with a non-empty name in path '{}'",
-                    str::from_utf8(full_path).unwrap(),
+                    full_path
                 );
             }
 
@@ -155,30 +321,63 @@ impl<T> Node<T> {
                 self.children = vec![child];
                 self.wild_child = true;
 
-            // TODO
+                self.children[0].priority += 1;
+                num_params -= 1;
+
+                if end < max {
+                    self.children[0].path = path[offset..end].to_vec();
+                    offset = end;
+
+                    let child: Box<Node<T>> = Box::new(Node {
+                        path: Vec::new(),
+                        wild_child: false,
+                        n_type: NodeType::Static,
+                        max_params: num_params,
+                        indices: Vec::new(),
+                        children: Vec::new(),
+                        handle: None,
+                        priority: 1,
+                    });
+
+                    self.children[0].children.push(child);
+                    self.children[0].children[0].insert_child_loop(
+                        offset,
+                        i + 1,
+                        num_params,
+                        path,
+                        full_path,
+                        handle,
+                    );
+                } else {
+                    self.children[0].insert_child_loop(
+                        offset,
+                        i + 1,
+                        num_params,
+                        path,
+                        full_path,
+                        handle,
+                    );
+                }
             } else {
                 // CatchAll
                 if end != max || num_params > 1 {
                     panic!(
                         "catch-all routes are only allowed at the end of the path in path '{}'",
-                        str::from_utf8(full_path).unwrap()
+                        full_path
                     );
                 }
 
                 if self.path.len() > 0 && self.path[self.path.len() - 1] == b'/' {
                     panic!(
                         "catch-all conflicts with existing handle for the path segment root in path '{}'", 
-                        str::from_utf8(full_path).unwrap()
+                        full_path
                     );
                 }
 
                 // currently fixed width 1 for '/'
                 i -= 1;
                 if path[i] != b'/' {
-                    panic!(
-                        "no / before catch-all in path '{}'",
-                        str::from_utf8(full_path).unwrap()
-                    );
+                    panic!("no / before catch-all in path '{}'", full_path);
                 }
 
                 self.path = path[offset..i].to_vec();
@@ -199,129 +398,143 @@ impl<T> Node<T> {
 
                 self.indices = vec![path[i]];
 
-                // TODO
+                self.children[0].priority += 1;
+
+                let child: Box<Node<T>> = Box::new(Node {
+                    path: path[i..].to_vec(),
+                    wild_child: false,
+                    n_type: NodeType::CatchAll,
+                    max_params: 1,
+                    indices: Vec::new(),
+                    children: Vec::new(),
+                    handle: Some(handle),
+                    priority: 1,
+                });
+
+                self.children[0].children.push(child);
+
+                return;
             }
-        }
-
-        // insert remaining path part and handle to the leaf
-        self.path = path[offset..].to_vec();
-        self.handle = Some(handle);
-    }
-
-    fn is_wildchild(&mut self, mut num_params: u8, path: &[u8], full_path: &[u8], handle: Handle) {
-        self.priority += 1;
-
-        // Update maxParams of the child node
-        if num_params > self.max_params {
-            self.max_params = num_params;
-        }
-        num_params -= 1;
-
-        // Check if the wildcard matches
-        if path.len() >= self.path.len()
-            && self.path == &path[..self.path.len()]
-            && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
-        {
-            // continue 'walk;
-            self.add_route_walk_loop(num_params, path, full_path, handle);
         } else {
-            // Wildcard conflict
-            let path_seg = if self.n_type == NodeType::CatchAll {
-                str::from_utf8(path).unwrap()
-            } else {
-                str::from_utf8(path)
-                    .unwrap()
-                    .splitn(2, '/')
-                    .into_iter()
-                    .next()
-                    .unwrap()
-            };
-            let full_path = str::from_utf8(full_path).unwrap();
-            let self_path = str::from_utf8(&self.path).unwrap();
-            let prefix = [
-                &full_path[..full_path.find(path_seg).unwrap()],
-                // str::from_utf8(&self.path).unwrap(),
-                &self_path,
-            ].concat();
-            panic!("'{}' in new path '{}' conflicts with existing wildcard '{}' in existing prefix '{}'", path_seg, full_path, self_path, prefix);
-        }
-    }
-
-    #[allow(dead_code)]
-    fn add_route_walk_loop(
-        &mut self,
-        num_params: u8,
-        path: &[u8],
-        full_path: &[u8],
-        handle: Handle,
-    ) {
-        // Update maxParams of the current node
-        if num_params > self.max_params {
-            self.max_params = num_params;
-        }
-
-        // Find the longest common prefix.
-        // This also implies that the common prefix contains no ':' or '*'
-        // since the existing key can't contain those chars.
-        let mut i = 0;
-        let max = min(path.len(), self.path.len());
-        while i < max && path[i] == self.path[i] {
-            i += 1;
-        }
-
-        // Split edge
-        if i < self.path.len() {
-            let mut child = Node {
-                path: self.path[i..].to_vec(),
-                wild_child: self.wild_child,
-                n_type: NodeType::Static,
-                max_params: 0,
-                indices: self.indices.clone(),
-                children: self.children.clone(),
-                handle: self.handle,
-                priority: self.priority - 1,
-            };
-
-            for c in &child.children {
-                if c.max_params > child.max_params {
-                    child.max_params = c.max_params;
-                }
-            }
-
-            self.children = vec![Box::new(child)];
-            self.indices = vec![self.path[i]];
-            self.path = path[..i].to_vec();
-            self.handle = None;
-            self.wild_child = false;
-        }
-
-        // Make new node a child of this node
-        if i < path.len() {
-            let path = &path[i..];
-            if self.wild_child {
-                // TODO
-                self.children[0].is_wildchild(num_params, path, full_path, handle);
-            }
-        } else if i == path.len() {
-            if self.handle.is_some() {
-                panic!(
-                    "a handle is already registered for path '{}'",
-                    str::from_utf8(full_path).unwrap()
-                );
-            }
+            // insert remaining path part and handle to the leaf
+            self.path = path[offset..].to_vec();
             self.handle = Some(handle);
         }
-
-        return;
+    }
+    pub fn get_value(&mut self, path: &str) -> (Option<T>, Option<Params>, bool) {
+        let mut handle = None;
+        let mut p = None;
+        let mut tsr = false;
+        self.get_value_loop(path.as_ref(), handle, p, tsr)
     }
 
-    fn slash_after_param(&mut self, num_params: u8, path: &[u8], full_path: &[u8], handle: Handle) {
-        self.priority += 1;
-        self.add_route_walk_loop(num_params, path, full_path, handle);
+    fn get_value_loop(
+        &mut self,
+        mut path: &[u8],
+        handle: Option<T>,
+        mut p: Option<Params>,
+        mut tsr: bool,
+    ) -> (Option<T>, Option<Params>, bool) {
+        if path.len() > self.path.len() {
+            if self.path == &path[..self.path.len()] {
+                path = &path[self.path.len()..];
+                if !self.wild_child {
+                    let c = path[0];
+                    for i in 0..self.indices.len() {
+                        if c == self.indices[i] {
+                            return self.children[i].get_value_loop(path, handle, p, tsr);
+                        }
+                    }
+
+                    tsr = path == [b'/'] && self.handle.is_some();
+                    return (handle, p, tsr);
+                }
+
+                return self.children[0].handle_wildcard_child(path, handle, p, tsr);
+            }
+        } else if self.path == path {
+            if self.handle.is_some() {
+                return (handle, p, tsr);
+            }
+
+            if path == [b'/'] && self.wild_child && self.n_type != NodeType::Root {
+                tsr = true;
+                return (handle, p, tsr);
+            }
+
+            for i in 0..self.indices.len() {
+                if self.indices[i] == b'/' {
+                    tsr = (self.path.len() == 1 && self.children[i].handle.is_some())
+                        || (self.children[i].n_type == NodeType::CatchAll
+                            && self.children[i].children[0].handle.is_some());
+                    return (handle, p, tsr);
+                }
+            }
+        }
+
+        return (handle, p, tsr);
     }
 
-    pub fn get_value(&mut self, path: &[u8]) -> (Option<Handle>, Option<Params>, bool) {
-        unimplemented!()
+    fn handle_wildcard_child(
+        &mut self,
+        mut path: &[u8],
+        handle: Option<T>,
+        mut p: Option<Params>,
+        mut tsr: bool,
+    ) -> (Option<T>, Option<Params>, bool) {
+        match self.n_type {
+            NodeType::Param => {
+                let mut end = 0;
+                while end < path.len() && path[end] != b'/' {
+                    end += 1;
+                }
+
+                if p.is_none() {
+                    p = Some(Params(Vec::with_capacity(self.max_params as usize)));
+                }
+
+                p.as_mut().map(|ps| {
+                    ps.0.push(Param {
+                        key: String::from_utf8(self.path[1..].to_vec()).unwrap(),
+                        value: String::from_utf8(path[..end].to_vec()).unwrap(),
+                    });
+                });
+
+                if end < path.len() {
+                    if self.children.len() > 0 {
+                        path = &path[end..];
+
+                        return self.children[0].get_value_loop(path, handle, p, tsr);
+                    }
+
+                    tsr = path.len() == end + 1;
+                    return (handle, p, tsr);
+                }
+
+                if self.handle.is_some() {
+                    return (handle, p, tsr);
+                } else if self.children.len() == 1 {
+                    tsr = self.children[0].path == &[b'/'] && self.children[0].handle.is_some();
+                }
+
+                return (handle, p, tsr);
+            }
+            NodeType::CatchAll => {
+                if p.is_none() {
+                    p = Some(Params(Vec::with_capacity(self.max_params as usize)));
+                }
+
+                p.as_mut().map(|ps| {
+                    ps.0.push(Param {
+                        key: String::from_utf8(self.path[2..].to_vec()).unwrap(),
+                        value: String::from_utf8(path.to_vec()).unwrap(),
+                    });
+                });
+
+                return (self.handle.clone(), p, tsr);
+            }
+            _ => panic!("invalid node type"),
+        }
     }
 }
 
