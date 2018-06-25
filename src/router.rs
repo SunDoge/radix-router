@@ -1,5 +1,7 @@
 // use http::{Request, Response};
 use hyper::{Body, Request, Response};
+use std::collections::BTreeMap;
+use tree::Node;
 
 pub type Handle = fn(Request<Body>) -> Response<Body>;
 
@@ -21,11 +23,15 @@ impl Params {
     }
 }
 
-pub struct Router {}
+pub struct Router {
+    trees: BTreeMap<String, Node<Handle>>,
+}
 
 impl Router {
     pub fn new() -> Router {
-        Router {}
+        Router {
+            trees: BTreeMap::new(),
+        }
     }
 
     pub fn get() {}
@@ -50,6 +56,11 @@ impl Router {
         if !path.starts_with("/") {
             panic!("path must begin with '/' in path '{}'", path);
         }
+
+        self.trees
+            .get_mut(method)
+            .get_or_insert(&mut Node::new())
+            .add_route(path, handle);
     }
 }
 
@@ -78,7 +89,7 @@ mod tests {
     #[should_panic(expected = "path must begin with '/' in path 'something'")]
     fn handle_ivalid_path() {
         // use http::Response;
-        use hyper::{Response, Body};
+        use hyper::{Body, Response};
         use router::Router;
 
         let path = "something";
