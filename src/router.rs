@@ -1,12 +1,13 @@
 // use http::{Request, Response};
-use futures::{future, Future, IntoFuture};
+use futures::{future, IntoFuture};
 use hyper::error::Error;
 use hyper::service::Service;
 use hyper::{Body, Request, Response};
 use std::collections::BTreeMap;
 use tree::Node;
 
-pub type Handle = Fn(Request<Body>, Option<Params>) -> Response<Body>;
+// TODO think more about what a handler looks like
+pub type Handle = fn(Request<Body>, Option<Params>) -> Response<Body>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {

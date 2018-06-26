@@ -1,5 +1,5 @@
 use router::{Param, Params};
-use std::fmt::Debug;
+// use std::fmt::Debug;
 use std::mem;
 use std::str;
 
@@ -84,7 +84,7 @@ impl<T> Node<T> {
         let full_path = path.clone();
         let path = path.as_ref();
         self.priority += 1;
-        let mut num_params = count_params(path);
+        let num_params = count_params(path);
         if self.path.len() > 0 || self.children.len() > 0 {
             self.add_route_loop(num_params, path, full_path, handle);
         } else {
@@ -239,7 +239,7 @@ impl<T> Node<T> {
         }
     }
 
-    fn insert_child(&mut self, mut num_params: u8, path: &[u8], full_path: &str, handle: T) {
+    fn insert_child(&mut self, num_params: u8, path: &[u8], full_path: &str, handle: T) {
         self.insert_child_loop(0, 0, num_params, path, full_path, handle);
     }
 
@@ -418,16 +418,13 @@ impl<T> Node<T> {
     }
     pub fn get_value(&mut self, path: &str) -> (Option<&T>, Option<Params>, bool) {
         // let mut handle = None;
-        let mut p = None;
-
-        self.get_value_loop(path.as_ref(), p)
+        self.get_value_loop(path.as_ref(), None)
     }
 
     fn get_value_loop(
         &mut self,
         mut path: &[u8],
-
-        mut p: Option<Params>,
+        p: Option<Params>,
     ) -> (Option<&T>, Option<Params>, bool) {
         if path.len() > self.path.len() {
             if self.path == &path[..self.path.len()] {
@@ -541,8 +538,10 @@ impl<T> Node<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyper::{Body, Request, Response};
-    use router::{Handle, Params};
+    // use hyper::{Body, Request, Response};
+    use router::Params;
+
+    // fn print_children() {}
 
     struct TestRequest<'a> {
         path: &'a str,
@@ -569,10 +568,7 @@ mod tests {
 
     type TestRequests<'a> = Vec<TestRequest<'a>>;
 
-    fn check_requests<T: Fn(bool, Option<Params>) -> String>(
-        tree: &mut Node<T>,
-        requests: TestRequests,
-    ) {
+    fn check_requests<T: Fn(Option<Params>) -> String>(tree: &mut Node<T>, requests: TestRequests) {
         for request in requests {
             let (handler, ps, _) = tree.get_value(request.path);
 
@@ -591,7 +587,7 @@ mod tests {
             } else {
                 match handler {
                     Some(h) => {
-                        let res = h(false, None);
+                        let res = h(None);
                         if res != request.route {
                             panic!(
                                 "handle mismatch for route '{}': Wrong handle ({} != {})",
@@ -611,8 +607,16 @@ mod tests {
         }
     }
 
-    fn fake_handler(val: &'static str) -> impl Fn(bool, Option<Params>) -> String {
-        move |req, ps| val.to_string()
+    fn check_priorities<T: Fn(Option<Params>) -> String>(tree: &mut Node<T>) {
+        // TODO
+    }
+
+    fn check_max_params<T: Fn(Option<Params>) -> String>(tree: &mut Node<T>) {
+        // TODO
+    }
+
+    fn fake_handler(val: &'static str) -> impl Fn(Option<Params>) -> String {
+        move |_ps| val.to_string()
     }
 
     #[test]
@@ -651,8 +655,19 @@ mod tests {
             vec![
                 TestRequest::new("/a", false, "/a", None),
                 TestRequest::new("/", true, "", None),
-                // TODO
+                TestRequest::new("/hi", false, "/hi", None),
+                TestRequest::new("/contact", false, "/contact", None),
+                TestRequest::new("/co", false, "/co", None),
+                TestRequest::new("/con", true, "", None), // key mismatch
+                TestRequest::new("/cona", true, "", None), // key mismatch
+                TestRequest::new("/no", true, "", None),  // no matching child
+                TestRequest::new("/ab", false, "/ab", None),
+                TestRequest::new("/α", false, "/α", None),
+                TestRequest::new("/β", false, "/β", None),
             ],
         );
+
+        // check_priorities(&mut tree);
+        // check_max_params(&mut tree);
     }
 }
