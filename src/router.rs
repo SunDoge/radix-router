@@ -36,15 +36,33 @@ impl<T> Router<T> {
         }
     }
 
-    pub fn get() {}
+    pub fn get(&mut self, path: &str, handle: T) {
+        self.handle("GET", path, handle);
+    }
 
-    pub fn post() {}
+    pub fn head(&mut self, path: &str, handle: T) {
+        self.handle("HEAD", path, handle);
+    }
 
-    pub fn put() {}
+    pub fn options(&mut self, path: &str, handle: T) {
+        self.handle("OPTIONS", path, handle);
+    }
 
-    pub fn patch() {}
+    pub fn post(&mut self, path: &str, handle: T) {
+        self.handle("POST", path, handle);
+    }
 
-    pub fn delete() {}
+    pub fn put(&mut self, path: &str, handle: T) {
+        self.handle("PUT", path, handle);
+    }
+
+    pub fn patch(&mut self, path: &str, handle: T) {
+        self.handle("PATCH", path, handle);
+    }
+
+    pub fn delete(&mut self, path: &str, handle: T) {
+        self.handle("DELETE", path, handle);
+    }
 
     pub fn group() {}
 
@@ -73,7 +91,10 @@ impl<T> Router<T> {
     }
 }
 
-impl<T> Service for Router<T> where T: Fn(Request<Body>, Option<Params>) -> Response<Body> {
+impl<T> Service for Router<T>
+where
+    T: Fn(Request<Body>, Option<Params>) -> Response<Body>,
+{
     type ReqBody = Body;
     type ResBody = Body;
     type Error = Error;
