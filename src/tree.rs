@@ -212,7 +212,8 @@ impl<T> Node<T> {
 
         // Check if the wildcard matches
 
-        if path.len() >= self.path.len() && self.path == &path[..self.path.len()]
+        if path.len() >= self.path.len()
+            && self.path == &path[..self.path.len()]
             && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
         {
             self.add_route_loop(num_params, path, full_path, handle);
@@ -442,7 +443,7 @@ impl<T> Node<T> {
                     }
 
                     tsr = path == [b'/'] && self.handle.is_some();
-                    return (self.handle.as_ref(), p, tsr);
+                    return (None, p, tsr);
                 }
 
                 return self.children[0].handle_wildcard_child(path, p, tsr);
@@ -465,9 +466,17 @@ impl<T> Node<T> {
                     return (self.handle.as_ref(), p, tsr);
                 }
             }
+
+            return (self.handle.as_ref(), p, tsr);
         }
 
-        return (self.handle.as_ref(), p, tsr);
+        tsr = (path == [b'/'])
+            || (self.path.len() == path.len() + 1
+                && self.path[path.len()] == b'/'
+                && path == &self.path[..self.path.len() - 1]
+                && self.handle.is_some());
+
+        return (None, p, tsr);
     }
 
     fn handle_wildcard_child(
@@ -502,7 +511,7 @@ impl<T> Node<T> {
                     }
 
                     tsr = path.len() == end + 1;
-                    return (self.handle.as_ref(), p, tsr);
+                    return (None, p, tsr);
                 }
 
                 if self.handle.is_some() {
@@ -511,7 +520,7 @@ impl<T> Node<T> {
                     tsr = self.children[0].path == &[b'/'] && self.children[0].handle.is_some();
                 }
 
-                return (self.handle.as_ref(), p, tsr);
+                return (None, p, tsr);
             }
             NodeType::CatchAll => {
                 if p.is_none() {
