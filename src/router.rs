@@ -5,15 +5,16 @@ use hyper::service::Service;
 use hyper::{Body, Request, Response};
 use std::collections::BTreeMap;
 use tree::Node;
-// pub type Handle = fn(Request<Body>) -> Response<Body>;
 
-#[derive(Debug, Clone)]
+pub type Handle = Fn(Request<Body>, Option<Params>) -> Response<Body>;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Param {
     pub key: String,
     pub value: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Params(pub Vec<Param>);
 
 impl Params {

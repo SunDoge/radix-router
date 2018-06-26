@@ -5,7 +5,7 @@ extern crate pretty_env_logger;
 use httprouter::router::Params;
 use httprouter::router::Router;
 use hyper::rt::{self, Future};
-use hyper::service::service_fn_ok;
+// use hyper::service::service_fn_ok;
 use hyper::{Body, Request, Response, Server};
 
 // static PHRASE: &'static [u8] = b"Hello World!";

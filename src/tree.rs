@@ -540,21 +540,119 @@ impl<T> Node<T> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use hyper::{Body, Request, Response};
+    use router::{Handle, Params};
 
-    struct TestRequest {
-        path: &str,
+    struct TestRequest<'a> {
+        path: &'a str,
         nil_handler: bool,
-        route: &str,
+        route: &'a str,
         ps: Option<Params>,
     }
 
-    type TestRequests = Vec<TestRequest>;
+    impl<'a> TestRequest<'a> {
+        pub fn new(
+            path: &'a str,
+            nil_handler: bool,
+            route: &'a str,
+            ps: Option<Params>,
+        ) -> TestRequest<'a> {
+            TestRequest {
+                path,
+                nil_handler,
+                route,
+                ps,
+            }
+        }
+    }
 
-    fn check_requests<T>(tree: Node<T>, requests: TestRequests) {}
+    type TestRequests<'a> = Vec<TestRequest<'a>>;
+
+    fn check_requests<T: Fn(bool, Option<Params>) -> String>(
+        tree: &mut Node<T>,
+        requests: TestRequests,
+    ) {
+        for request in requests {
+            let (handler, ps, _) = tree.get_value(request.path);
+
+            if handler.is_none() {
+                if !request.nil_handler {
+                    panic!(
+                        "handle mismatch for route '{}': Expected non-nil handle",
+                        request.path
+                    );
+                }
+            } else if request.nil_handler {
+                panic!(
+                    "handle m ismatch for route '{}': Expected nil handle",
+                    request.path
+                );
+            } else {
+                match handler {
+                    Some(h) => {
+                        let res = h(false, None);
+                        if res != request.route {
+                            panic!(
+                                "handle mismatch for route '{}': Wrong handle ({} != {})",
+                                request.path, res, request.route
+                            );
+                        }
+                    }
+                    None => {
+                        panic!("handle not found");
+                    }
+                }
+            }
+
+            if ps != request.ps {
+                panic!("Params mismatch for route '{}'", request.path);
+            }
+        }
+    }
+
+    fn fake_handler(val: &'static str) -> impl Fn(bool, Option<Params>) -> String {
+        move |req, ps| val.to_string()
+    }
 
     #[test]
-    fn it_works() {
-        // use tree::Node;
-        // let mut node = Node::new();
+    fn test_count_params() {
+        assert_eq!(
+            2,
+            count_params("/path/:param1/static/*catch-all".as_bytes())
+        );
+        assert_eq!(255, count_params("/:param".repeat(256).as_bytes()));
+    }
+
+    #[test]
+    fn test_tree_add_and_get() {
+        let mut tree = Node::new();
+
+        let routes = vec![
+            "/hi",
+            "/contact",
+            "/co",
+            "/c",
+            "/a",
+            "/ab",
+            "/doc/",
+            "/doc/go_faq.html",
+            "/doc/go1.html",
+            "/α",
+            "/β",
+        ];
+
+        for route in routes {
+            tree.add_route(route, fake_handler(route));
+        }
+
+        check_requests(
+            &mut tree,
+            vec![
+                TestRequest::new("/a", false, "/a", None),
+                TestRequest::new("/", true, "", None),
+                // TODO
+            ],
+        );
     }
 }
