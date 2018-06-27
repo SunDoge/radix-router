@@ -535,10 +535,6 @@ impl<T> Node<T> {
             _ => panic!("invalid node type"),
         }
     }
-
-    pub fn add_route<P: AsRef<[u8]>>(&mut self, path: P, handle: T) {
-        
-    }
 }
 
 #[cfg(test)]
