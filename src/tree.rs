@@ -540,6 +540,9 @@ mod tests {
     use super::*;
     // use hyper::{Body, Request, Response};
     use router::Params;
+    use std::panic;
+    use std::sync::Mutex;
+    use std::thread::panicking;
 
     // fn print_children() {}
 
@@ -708,7 +711,6 @@ mod tests {
             ],
         );
 
-
         check_priorities(&mut tree);
         check_max_params(&mut tree);
     }
@@ -829,5 +831,54 @@ mod tests {
 
         check_priorities(&mut tree);
         check_max_params(&mut tree);
+    }
+
+    // path: &str, conflict: bool
+    type TestRoute = (&'static str, bool);
+
+    fn test_routes(routes: Vec<TestRoute>) {
+        let mut tree = Mutex::new(Node::new());
+        // let mut tree = Node::new();
+
+        for route in routes {
+            let recv = panic::catch_unwind(|| {
+                let mut guard = match tree.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.add_route(route.0, ());
+            });
+
+            if route.1 {
+                if recv.is_ok() {
+                    panic!("no panic for conflicting route '{}'", route.0);
+                }
+            } else if recv.is_err() {
+                panic!("unexpected panic for route '{}': {:?}", route.0, recv);
+            }
+        }
+    }
+
+    #[test]
+    fn test_tree_wildcard_conflict() {
+        let routes = vec![
+            ("/cmd/:tool/:sub", false),
+            ("/cmd/vet", true),
+            ("/src/*filepath", false),
+            ("/src/*filepathx", true),
+            ("/src/", true),
+            ("/src1/", false),
+            ("/src1/*filepath", true),
+            ("/src2*filepath", true),
+            ("/search/:query", false),
+            ("/search/invalid", true),
+            ("/user_:name", false),
+            ("/user_x", true),
+            // ("/user_:name", false),
+            ("/user_:name", true), // Rust is different. Nil handler was not allowed. Or maybe it is a feature?
+            ("/id:id", false),
+            ("/id/:id", true),
+        ];
+        test_routes(routes);
     }
 }
