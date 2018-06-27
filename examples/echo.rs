@@ -1,9 +1,9 @@
-extern crate httprouter;
+extern crate radix_router;
 extern crate hyper;
 extern crate pretty_env_logger;
 
-use httprouter::router::Params;
-use httprouter::router::Router;
+use radix_router::router::Params;
+use radix_router::router::Router;
 use hyper::rt::{self, Future};
 // use hyper::service::service_fn_ok;
 use hyper::{Body, Request, Response, Server};
