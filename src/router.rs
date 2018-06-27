@@ -15,6 +15,15 @@ pub struct Param {
     pub value: String,
 }
 
+impl Param {
+    pub fn new(key: &str, value: &str) -> Param {
+        Param {
+            key: key.to_string(),
+            value: value.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Params(pub Vec<Param>);
 

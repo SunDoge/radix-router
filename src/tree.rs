@@ -212,8 +212,7 @@ impl<T> Node<T> {
 
         // Check if the wildcard matches
 
-        if path.len() >= self.path.len()
-            && self.path == &path[..self.path.len()]
+        if path.len() >= self.path.len() && self.path == &path[..self.path.len()]
             && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
         {
             self.add_route_loop(num_params, path, full_path, handle);
@@ -467,8 +466,7 @@ impl<T> Node<T> {
         }
 
         let tsr = (path == [b'/'])
-            || (self.path.len() == path.len() + 1
-                && self.path[path.len()] == b'/'
+            || (self.path.len() == path.len() + 1 && self.path[path.len()] == b'/'
                 && path == &self.path[..self.path.len() - 1]
                 && self.handle.is_some());
 
@@ -706,6 +704,124 @@ mod tests {
                 TestRequest::new("/ab", false, "/ab", None),
                 TestRequest::new("/α", false, "/α", None),
                 TestRequest::new("/β", false, "/β", None),
+            ],
+        );
+
+        check_priorities(&mut tree);
+        check_max_params(&mut tree);
+    }
+
+    #[test]
+    fn test_tree_wildcard() {
+        let mut tree = Node::new();
+
+        let routes = vec![
+            "/",
+            "/cmd/:tool/:sub",
+            "/cmd/:tool/",
+            "/src/*filepath",
+            "/search/",
+            "/search/:query",
+            "/user_:name",
+            "/user_:name/about",
+            "/files/:dir/*filepath",
+            "/doc/",
+            "/doc/go_faq.html",
+            "/doc/go1.html",
+            "/info/:user/public",
+            "/info/:user/project/:project",
+        ];
+
+        for route in routes {
+            tree.add_route(route, fake_handler(route));
+        }
+
+        check_requests(
+            &mut tree,
+            vec![
+                TestRequest::new("/", false, "/", None),
+                TestRequest::new(
+                    "/cmd/test/",
+                    false,
+                    "/cmd/:tool/",
+                    Some(Params(vec![Param::new("tool", "test")])),
+                ),
+                TestRequest::new(
+                    "/cmd/test",
+                    true,
+                    "",
+                    Some(Params(vec![Param::new("tool", "test")])),
+                ),
+                TestRequest::new(
+                    "/cmd/test/3",
+                    false,
+                    "/cmd/:tool/:sub",
+                    Some(Params(vec![
+                        Param::new("tool", "test"),
+                        Param::new("sub", "3"),
+                    ])),
+                ),
+                TestRequest::new(
+                    "/src/",
+                    false,
+                    "/src/*filepath",
+                    Some(Params(vec![Param::new("filepath", "/")])),
+                ),
+                TestRequest::new(
+                    "/src/some/file.png",
+                    false,
+                    "/src/*filepath",
+                    Some(Params(vec![Param::new("filepath", "/some/file.png")])),
+                ),
+                TestRequest::new("/search/", false, "/search/", None),
+                TestRequest::new(
+                    "/search/someth!ng+in+ünìcodé",
+                    false,
+                    "/search/:query",
+                    Some(Params(vec![Param::new("query", "someth!ng+in+ünìcodé")])),
+                ),
+                TestRequest::new(
+                    "/search/someth!ng+in+ünìcodé/",
+                    true,
+                    "",
+                    Some(Params(vec![Param::new("query", "someth!ng+in+ünìcodé")])),
+                ),
+                TestRequest::new(
+                    "/user_gopher",
+                    false,
+                    "/user_:name",
+                    Some(Params(vec![Param::new("name", "gopher")])),
+                ),
+                TestRequest::new(
+                    "/user_gopher/about",
+                    false,
+                    "/user_:name/about",
+                    Some(Params(vec![Param::new("name", "gopher")])),
+                ),
+                TestRequest::new(
+                    "/files/js/inc/framework.js",
+                    false,
+                    "/files/:dir/*filepath",
+                    Some(Params(vec![
+                        Param::new("dir", "js"),
+                        Param::new("filepath", "/inc/framework.js"),
+                    ])),
+                ),
+                TestRequest::new(
+                    "/info/gordon/public",
+                    false,
+                    "/info/:user/public",
+                    Some(Params(vec![Param::new("user", "gordon")])),
+                ),
+                TestRequest::new(
+                    "/info/gordon/project/go",
+                    false,
+                    "/info/:user/project/:project",
+                    Some(Params(vec![
+                        Param::new("user", "gordon"),
+                        Param::new("project", "go"),
+                    ])),
+                ),
             ],
         );
 
