@@ -1,4 +1,5 @@
-# HttpRouter-rs
+# HttpRouter-rs 
+[![Build Status](https://travis-ci.org/SunDoge/httprouter-rs.svg?branch=master)](https://travis-ci.org/SunDoge/httprouter-rs)
 
 HttpRouter-rs is a rust port of [julienschmidt/httprouter](https://github.com/julienschmidt/httprouter).
 
