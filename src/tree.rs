@@ -212,7 +212,8 @@ impl<T> Node<T> {
 
         // Check if the wildcard matches
 
-        if path.len() >= self.path.len() && self.path == &path[..self.path.len()]
+        if path.len() >= self.path.len()
+            && self.path == &path[..self.path.len()]
             && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
         {
             self.add_route_loop(num_params, path, full_path, handle);
@@ -466,7 +467,8 @@ impl<T> Node<T> {
         }
 
         let tsr = (path == [b'/'])
-            || (self.path.len() == path.len() + 1 && self.path[path.len()] == b'/'
+            || (self.path.len() == path.len() + 1
+                && self.path[path.len()] == b'/'
                 && path == &self.path[..self.path.len() - 1]
                 && self.handle.is_some());
 
@@ -897,5 +899,70 @@ mod tests {
         ];
 
         test_routes(routes);
+    }
+
+    #[test]
+    fn test_tree_duplicate_path() {
+        let tree = Mutex::new(Node::new());
+
+        let routes = vec![
+            "/",
+            "/doc/",
+            "/src/*filepath",
+            "/search/:query",
+            "/user_:name",
+        ];
+
+        for route in routes {
+            let mut recv = panic::catch_unwind(|| {
+                let mut guard = match tree.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.add_route(route, fake_handler(route));
+            });
+
+            if recv.is_err() {
+                panic!("panic inserting route '{}': {:?}", route, recv);
+            }
+
+            recv = panic::catch_unwind(|| {
+                let mut guard = match tree.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.add_route(route, fake_handler(route));
+            });
+
+            if recv.is_ok() {
+                panic!("no panic while inserting duplicate route '{}'", route);
+            }
+        }
+
+        check_requests(
+            &mut tree.lock().unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![
+                TestRequest::new("/", false, "/", None),
+                TestRequest::new("/doc/", false, "/doc/", None),
+                TestRequest::new(
+                    "/src/some/file.png",
+                    false,
+                    "/src/*filepath",
+                    Some(Params(vec![Param::new("filepath", "/some/file.png")])),
+                ),
+                TestRequest::new(
+                    "/search/someth!ng+in+ünìcodé",
+                    false,
+                    "/search/:query",
+                    Some(Params(vec![Param::new("query", "someth!ng+in+ünìcodé")])),
+                ),
+                TestRequest::new(
+                    "/user_gopher",
+                    false,
+                    "/user_:name",
+                    Some(Params(vec![Param::new("name", "gopher")])),
+                ),
+            ],
+        );
     }
 }
