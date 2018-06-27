@@ -94,7 +94,7 @@ impl<T> Node<T> {
         }
     }
 
-    fn add_route_loop(&mut self, num_params: u8, path: &[u8], full_path: &str, handle: T) {
+    fn add_route_loop(&mut self, num_params: u8, mut path: &[u8], full_path: &str, handle: T) {
         if num_params > self.max_params {
             self.max_params = num_params;
         }
@@ -134,7 +134,7 @@ impl<T> Node<T> {
         }
 
         if i < path.len() {
-            let path = &path[i..];
+            path = &path[i..];
 
             if self.wild_child {
                 // *n = * {n}.children[0].clone();
@@ -386,7 +386,7 @@ impl<T> Node<T> {
                     indices: Vec::new(),
                     children: Vec::new(),
                     handle: None,
-                    priority: 1,
+                    priority: 0,
                 });
 
                 self.children = vec![child];
@@ -608,6 +608,7 @@ mod tests {
     }
 
     fn check_priorities<T: Fn() -> String>(n: &mut Node<T>) -> u32 {
+        // println!("{}", str::from_utf8(&n.path).unwrap());
         let mut prio: u32 = 0;
         for i in 0..n.children.len() {
             prio += check_priorities(&mut *n.children[i]);
@@ -706,6 +707,7 @@ mod tests {
                 TestRequest::new("/β", false, "/β", None),
             ],
         );
+
 
         check_priorities(&mut tree);
         check_max_params(&mut tree);
