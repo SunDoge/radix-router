@@ -24,7 +24,7 @@ fn count_params(path: &[u8]) -> u8 {
     n as u8
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, PartialOrd)]
 pub enum NodeType {
     Static,
     Root,
@@ -212,7 +212,8 @@ impl<T> Node<T> {
 
         // Check if the wildcard matches
 
-        if path.len() >= self.path.len() && self.path == &path[..self.path.len()]
+        if path.len() >= self.path.len()
+            && self.path == &path[..self.path.len()]
             && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
         {
             self.add_route_loop(num_params, path, full_path, handle);
@@ -466,7 +467,8 @@ impl<T> Node<T> {
         }
 
         let tsr = (path == [b'/'])
-            || (self.path.len() == path.len() + 1 && self.path[path.len()] == b'/'
+            || (self.path.len() == path.len() + 1
+                && self.path[path.len()] == b'/'
                 && path == &self.path[..self.path.len() - 1]
                 && self.handle.is_some());
 
@@ -568,7 +570,7 @@ mod tests {
 
     type TestRequests<'a> = Vec<TestRequest<'a>>;
 
-    fn check_requests<T: Fn(Option<Params>) -> String>(tree: &mut Node<T>, requests: TestRequests) {
+    fn check_requests<T: Fn() -> String>(tree: &mut Node<T>, requests: TestRequests) {
         for request in requests {
             let (handler, ps, _) = tree.get_value(request.path);
 
@@ -587,7 +589,7 @@ mod tests {
             } else {
                 match handler {
                     Some(h) => {
-                        let res = h(None);
+                        let res = h();
                         if res != request.route {
                             panic!(
                                 "handle mismatch for route '{}': Wrong handle ({} != {})",
@@ -607,16 +609,56 @@ mod tests {
         }
     }
 
-    fn check_priorities<T: Fn(Option<Params>) -> String>(tree: &mut Node<T>) {
-        // TODO
+    fn check_priorities<T: Fn() -> String>(n: &mut Node<T>) -> u32 {
+        let mut prio: u32 = 0;
+        for i in 0..n.children.len() {
+            prio += check_priorities(&mut *n.children[i]);
+        }
+
+        if n.handle.is_some() {
+            prio += 1;
+        }
+
+        if n.priority != prio {
+            panic!(
+                "priority mismatch for node '{}': is {}, should be {}",
+                str::from_utf8(&n.path).unwrap(),
+                n.priority,
+                prio
+            )
+        }
+
+        prio
     }
 
-    fn check_max_params<T: Fn(Option<Params>) -> String>(tree: &mut Node<T>) {
-        // TODO
+    fn check_max_params<T: Fn() -> String>(n: &mut Node<T>) -> u8 {
+        let mut max_params: u8 = 0;
+        for i in 0..n.children.len() {
+            let params = check_max_params(&mut *n.children[i]);
+
+            if params > max_params {
+                max_params = params;
+            }
+        }
+
+        if n.n_type > NodeType::Root && !n.wild_child {
+            max_params += 1;
+        }
+
+        if n.max_params != max_params {
+            panic!(
+                "maxParams mismatch for node '{}': is {}, should be {}",
+                str::from_utf8(&n.path).unwrap(),
+                n.max_params,
+                max_params,
+            )
+        }
+
+        max_params
     }
 
-    fn fake_handler(val: &'static str) -> impl Fn(Option<Params>) -> String {
-        move |_ps| val.to_string()
+    fn fake_handler(val: &'static str) -> impl Fn() -> String {
+        move || val.to_string()
     }
 
     #[test]
@@ -667,7 +709,7 @@ mod tests {
             ],
         );
 
-        // check_priorities(&mut tree);
-        // check_max_params(&mut tree);
+        check_priorities(&mut tree);
+        check_max_params(&mut tree);
     }
 }
