@@ -542,7 +542,6 @@ mod tests {
     use router::Params;
     use std::panic;
     use std::sync::Mutex;
-    use std::thread::panicking;
 
     // fn print_children() {}
 
@@ -837,7 +836,7 @@ mod tests {
     type TestRoute = (&'static str, bool);
 
     fn test_routes(routes: Vec<TestRoute>) {
-        let mut tree = Mutex::new(Node::new());
+        let tree = Mutex::new(Node::new());
         // let mut tree = Node::new();
 
         for route in routes {
@@ -879,6 +878,24 @@ mod tests {
             ("/id:id", false),
             ("/id/:id", true),
         ];
+        test_routes(routes);
+    }
+
+    #[test]
+    fn test_tree_child_conflict() {
+        let routes = vec![
+            ("/cmd/vet", false),
+            ("/cmd/:tool/:sub", true),
+            ("/src/AUTHORS", false),
+            ("/src/*filepath", true),
+            ("/user_x", false),
+            ("/user_:name", true),
+            ("/id/:id", false),
+            ("/id:id", true),
+            ("/:id", true),
+            ("/*filepath", true),
+        ];
+
         test_routes(routes);
     }
 }
