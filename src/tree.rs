@@ -58,7 +58,7 @@ impl<T> Node<T> {
         }
     }
 
-    // increments priority of the given child and reorders if necessary
+    /// increments priority of the given child and reorders if necessary
     fn increment_child_prio(&mut self, pos: usize) -> usize {
         self.children[pos].priority += 1;
         let prio = self.children[pos].priority;
@@ -84,8 +84,8 @@ impl<T> Node<T> {
         new_pos
     }
 
-    // addRoute adds a node with the given handle to the path.
-    // Not concurrency-safe!
+    /// addRoute adds a node with the given handle to the path.
+    /// Not concurrency-safe!
     pub fn add_route(&mut self, path: &str, handle: T) {
         let full_path = path.clone();
         let path = path.as_ref();
@@ -439,17 +439,17 @@ impl<T> Node<T> {
         }
     }
 
-    // Returns the handle registered with the given path (key). The values of
-    // wildcards are saved to a map.
-    // If no handle can be found, a TSR (trailing slash redirect) recommendation is
-    // made if a handle exists with an extra (without the) trailing slash for the
-    // given path.
+    /// Returns the handle registered with the given path (key). The values of
+    /// wildcards are saved to a map.
+    /// If no handle can be found, a TSR (trailing slash redirect) recommendation is
+    /// made if a handle exists with an extra (without the) trailing slash for the
+    /// given path.
     pub fn get_value(&mut self, path: &str) -> (Option<&T>, Option<Params>, bool) {
         // let mut handle = None;
         self.get_value_loop(path.as_ref(), None)
     }
 
-    // outer loop for walking the tree
+    /// outer loop for walking the tree
     fn get_value_loop(
         &mut self,
         mut path: &[u8],
