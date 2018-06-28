@@ -93,6 +93,16 @@ impl<T> Router<T> {
         self.handle("DELETE", path, handle);
     }
 
+    /// Perhaps something like
+    /// 
+    /// # Example
+    /// 
+    /// ```ignore
+    /// router.group(vec![middelware], |router| {
+    ///     router.get("/something", somewhere);
+    ///     router.post("/something", somewhere);
+    /// })
+    /// ```
     pub fn group() {}
 
     /// ServeFiles serves files from the given file system root.
