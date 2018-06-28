@@ -97,7 +97,7 @@ impl<T> Router<T> {
     /// 
     /// # Example
     /// 
-    /// ```
+    /// ```ignore
     /// router.group(vec![middelware], |router| {
     ///     router.get("/something", somewhere);
     ///     router.post("/something", somewhere);
