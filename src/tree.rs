@@ -74,10 +74,10 @@ impl<T> Node<T> {
         // build new index char string
         if new_pos != pos {
             self.indices = [
-                &self.indices[..new_pos],       // unchanged prefix, might be empty
-                &self.indices[pos..pos + 1],    // the index char we move
-                &self.indices[new_pos..pos],    // rest without char at 'pos'
-                &self.indices[pos + 1..],       // rest without char at 'pos'
+                &self.indices[..new_pos],    // unchanged prefix, might be empty
+                &self.indices[pos..pos + 1], // the index char we move
+                &self.indices[new_pos..pos], // rest without char at 'pos'
+                &self.indices[pos + 1..],    // rest without char at 'pos'
             ].concat();
         }
 
@@ -107,7 +107,7 @@ impl<T> Node<T> {
         if num_params > self.max_params {
             self.max_params = num_params;
         }
-        
+
         // Find the longest common prefix.
         // This also implies that the common prefix contains no ':' or '*'
         // since the existing key can't contain those chars.
@@ -204,8 +204,8 @@ impl<T> Node<T> {
             }
 
             return self.insert_child(num_params, path, full_path, handle);
-
-        } else if i == path.len() { // Make node a (in-path) leaf
+        } else if i == path.len() {
+            // Make node a (in-path) leaf
             if self.handle.is_some() {
                 panic!("a handle is already registered for path '{}'", full_path);
             }
@@ -316,7 +316,8 @@ impl<T> Node<T> {
                 );
             }
 
-            if c == b':' { // Param
+            if c == b':' {
+                // Param
                 // split path at the beginning of the wildcard
                 if i > 0 {
                     self.path = path[offset..i].to_vec();
@@ -459,8 +460,8 @@ impl<T> Node<T> {
             if self.path == &path[..self.path.len()] {
                 path = &path[self.path.len()..];
                 // If this node does not have a wildcard (param or catchAll)
-				// child,  we can just look up the next child node and continue
-				// to walk down the tree
+                // child,  we can just look up the next child node and continue
+                // to walk down the tree
                 if !self.wild_child {
                     let c = path[0];
                     for i in 0..self.indices.len() {
@@ -469,8 +470,8 @@ impl<T> Node<T> {
                         }
                     }
                     // Nothing found.
-					// We can recommend to redirect to the same URL without a
-					// trailing slash if a leaf exists for that path.
+                    // We can recommend to redirect to the same URL without a
+                    // trailing slash if a leaf exists for that path.
                     let tsr = path == [b'/'] && self.handle.is_some();
                     return (None, p, tsr);
                 }
@@ -480,7 +481,7 @@ impl<T> Node<T> {
             }
         } else if self.path == path {
             // We should have reached the node containing the handle.
-			// Check if this node has a handle registered.
+            // Check if this node has a handle registered.
             if self.handle.is_some() {
                 return (self.handle.as_ref(), p, false);
             }
@@ -491,7 +492,7 @@ impl<T> Node<T> {
             }
 
             // No handle found. Check if a handle for this path + a
-			// trailing slash exists for trailing slash recommendation
+            // trailing slash exists for trailing slash recommendation
             for i in 0..self.indices.len() {
                 if self.indices[i] == b'/' {
                     let tsr = (self.path.len() == 1 && self.children[i].handle.is_some())
@@ -505,7 +506,7 @@ impl<T> Node<T> {
         }
 
         // Nothing found. We can recommend to redirect to the same URL with an
-		// extra trailing slash if a leaf exists for that path
+        // extra trailing slash if a leaf exists for that path
         let tsr = (path == [b'/'])
             || (self.path.len() == path.len() + 1
                 && self.path[path.len()] == b'/'
@@ -584,7 +585,73 @@ impl<T> Node<T> {
             _ => panic!("invalid node type"),
         }
     }
+
+    fn find_case_insensitive_path(
+        &mut self,
+        path: &str,
+        fix_trailing_slash: bool,
+    ) -> (Vec<u8>, bool) {
+        return self.find_case_insensitive_path_rec(
+            path.as_bytes(),
+            path.to_lowercase().as_bytes(),
+            Vec::with_capacity(path.len() + 1),
+            [0; 4],
+            fix_trailing_slash,
+        );
+    }
+
+    fn find_case_insensitive_path_rec(
+        &mut self,
+        mut path: &[u8],
+        mut lo_path: &[u8],
+        mut ci_path: Vec<u8>,
+        mut rb: [u8; 4],
+        fix_trailing_slash: bool,
+    ) -> (Vec<u8>, bool) {
+        let lo_n_path = str::from_utf8(&self.path).unwrap().as_bytes();
+
+        if lo_path.len() >= lo_n_path.len() && lo_n_path.len() == 0
+            || lo_path[1..lo_n_path.len()] == lo_n_path[1..]
+        {
+            ci_path.append(&mut self.path.clone());
+
+            path = &path[self.path.len()..];
+
+            if path.len() > 0 {
+                let lo_old = lo_path.clone();
+                lo_path = &lo_path[lo_n_path.len()..];
+
+                if !self.wild_child {
+                    rb = shift_n_rune_bytes(rb, lo_n_path.len());
+
+                    if rb[0] != 0 {
+                        for i in 0..self.indices.len() {
+                            if self.indices[i] == rb[0] {
+                                return self.children[i].find_case_insensitive_path_rec(path, lo_path, ci_path, rb, fix_trailing_slash);
+                            }
+                        }
+                    } else {
+                        
+                    }
+                }
+            }
+        }
+
+        (ci_path, false)
+    }
+
+   
 }
+
+ fn shift_n_rune_bytes(rb: [u8; 4], n: usize) -> [u8; 4] {
+        match n {
+            0 => rb,
+            1 => [rb[1], rb[2], rb[3], 0],
+            2 => [rb[2], rb[3], 0, 0],
+            3 => [rb[3], 0, 0, 0],
+            _ => [0; 4],
+        }
+    }
 
 #[cfg(test)]
 mod tests {
