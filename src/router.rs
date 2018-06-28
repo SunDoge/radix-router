@@ -75,6 +75,16 @@ impl<T> Router<T> {
         self.handle("DELETE", path, handle);
     }
 
+    /// Perhaps something like
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// router.group(vec![middelware], |router| {
+    ///     router.get("/something", somewhere);
+    ///     router.post("/something", somewhere);
+    /// })
+    /// ```
     pub fn group() {}
 
     pub fn serve_files(&mut self, path: &str) {
