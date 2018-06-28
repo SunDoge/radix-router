@@ -58,33 +58,41 @@ impl<T> Node<T> {
         }
     }
 
+    // increments priority of the given child and reorders if necessary
     fn increment_child_prio(&mut self, pos: usize) -> usize {
         self.children[pos].priority += 1;
         let prio = self.children[pos].priority;
+        // adjust position (move to front)
         let mut new_pos = pos;
 
         while new_pos > 0 && self.children[new_pos - 1].priority < prio {
+            // swap node positions
             self.children.swap(new_pos - 1, new_pos);
             new_pos -= 1;
         }
 
+        // build new index char string
         if new_pos != pos {
             self.indices = [
-                &self.indices[..new_pos],
-                &self.indices[pos..pos + 1],
-                &self.indices[new_pos..pos],
-                &self.indices[pos + 1..],
+                &self.indices[..new_pos],       // unchanged prefix, might be empty
+                &self.indices[pos..pos + 1],    // the index char we move
+                &self.indices[new_pos..pos],    // rest without char at 'pos'
+                &self.indices[pos + 1..],       // rest without char at 'pos'
             ].concat();
         }
 
         new_pos
     }
 
+    // addRoute adds a node with the given handle to the path.
+    // Not concurrency-safe!
     pub fn add_route(&mut self, path: &str, handle: T) {
         let full_path = path.clone();
         let path = path.as_ref();
         self.priority += 1;
         let num_params = count_params(path);
+
+        // non-empty tree
         if self.path.len() > 0 || self.children.len() > 0 {
             self.add_route_loop(num_params, path, full_path, handle);
         } else {
@@ -95,10 +103,14 @@ impl<T> Node<T> {
     }
 
     fn add_route_loop(&mut self, num_params: u8, mut path: &[u8], full_path: &str, handle: T) {
+        // Update max_params of the current node
         if num_params > self.max_params {
             self.max_params = num_params;
         }
-
+        
+        // Find the longest common prefix.
+        // This also implies that the common prefix contains no ':' or '*'
+        // since the existing key can't contain those chars.
         let mut i = 0;
         let max = min(path.len(), self.path.len());
 
@@ -106,6 +118,7 @@ impl<T> Node<T> {
             i += 1;
         }
 
+        // Split edge
         if i < self.path.len() {
             let mut child = Node {
                 path: self.path[i..].to_vec(),
@@ -121,6 +134,7 @@ impl<T> Node<T> {
 
             mem::swap(&mut self.children, &mut child.children);
 
+            // Update max_params (max of all children)
             for c in &child.children {
                 if c.max_params > child.max_params {
                     child.max_params = c.max_params;
@@ -133,6 +147,7 @@ impl<T> Node<T> {
             self.wild_child = false;
         }
 
+        // Make new node a child of this node
         if i < path.len() {
             path = &path[i..];
 
@@ -143,11 +158,13 @@ impl<T> Node<T> {
 
             let c = path[0];
 
+            // slash after param
             if self.n_type == NodeType::Param && c == b'/' && self.children.len() == 1 {
                 self.children[0].priority += 1;
                 return self.children[0].add_route_loop(num_params, path, full_path, handle);
             }
 
+            // Check if a child with the next path byte exists
             for mut i in 0..self.indices.len() {
                 if c == self.indices[i] {
                     i = self.increment_child_prio(i);
@@ -156,7 +173,6 @@ impl<T> Node<T> {
             }
 
             // Otherwise insert it
-
             if c != b':' && c != b'*' {
                 self.indices.push(c);
 
@@ -188,7 +204,8 @@ impl<T> Node<T> {
             }
 
             return self.insert_child(num_params, path, full_path, handle);
-        } else if i == path.len() {
+
+        } else if i == path.len() { // Make node a (in-path) leaf
             if self.handle.is_some() {
                 panic!("a handle is already registered for path '{}'", full_path);
             }
@@ -214,12 +231,12 @@ impl<T> Node<T> {
 
         if path.len() >= self.path.len()
             && self.path == &path[..self.path.len()]
+            // Check for longer wildcard, e.g. :name and :names
             && (self.path.len() >= path.len() || path[self.path.len()] == b'/')
         {
             self.add_route_loop(num_params, path, full_path, handle);
         } else {
             // Wildcard conflict
-
             let path_seg = if self.n_type == NodeType::CatchAll {
                 str::from_utf8(path).unwrap()
             } else {
@@ -257,13 +274,16 @@ impl<T> Node<T> {
             let max = path.len();
             let c = path[i];
 
+            // find prefix until first wildcard (beginning with ':'' or '*'')
             if c != b':' && c != b'*' {
                 return self.insert_child_loop(offset, i + 1, num_params, path, full_path, handle);
             }
 
+            // find wildcard end (either '/' or path end)
             let mut end = i + 1;
             while end < max && path[end] != b'/' {
                 match path[end] {
+                    // the wildcard name must not contain ':' and '*'
                     b':' | b'*' => panic!(
                         "only one wildcard per path segment is allowed, has: '{}' in path '{}'",
                         str::from_utf8(&path[i..]).unwrap(),
@@ -296,8 +316,8 @@ impl<T> Node<T> {
                 );
             }
 
-            if c == b':' {
-                // Param
+            if c == b':' { // Param
+                // split path at the beginning of the wildcard
                 if i > 0 {
                     self.path = path[offset..i].to_vec();
                     offset = i;
@@ -396,6 +416,7 @@ impl<T> Node<T> {
 
                 self.children[0].priority += 1;
 
+                // second node: node holding the variable
                 let child: Box<Node<T>> = Box::new(Node {
                     path: path[i..].to_vec(),
                     wild_child: false,
@@ -417,11 +438,18 @@ impl<T> Node<T> {
             self.handle = Some(handle);
         }
     }
+
+    // Returns the handle registered with the given path (key). The values of
+    // wildcards are saved to a map.
+    // If no handle can be found, a TSR (trailing slash redirect) recommendation is
+    // made if a handle exists with an extra (without the) trailing slash for the
+    // given path.
     pub fn get_value(&mut self, path: &str) -> (Option<&T>, Option<Params>, bool) {
         // let mut handle = None;
         self.get_value_loop(path.as_ref(), None)
     }
 
+    // outer loop for walking the tree
     fn get_value_loop(
         &mut self,
         mut path: &[u8],
@@ -430,6 +458,9 @@ impl<T> Node<T> {
         if path.len() > self.path.len() {
             if self.path == &path[..self.path.len()] {
                 path = &path[self.path.len()..];
+                // If this node does not have a wildcard (param or catchAll)
+				// child,  we can just look up the next child node and continue
+				// to walk down the tree
                 if !self.wild_child {
                     let c = path[0];
                     for i in 0..self.indices.len() {
@@ -437,14 +468,19 @@ impl<T> Node<T> {
                             return self.children[i].get_value_loop(path, p);
                         }
                     }
-
+                    // Nothing found.
+					// We can recommend to redirect to the same URL without a
+					// trailing slash if a leaf exists for that path.
                     let tsr = path == [b'/'] && self.handle.is_some();
                     return (None, p, tsr);
                 }
 
+                // handle wildcard child
                 return self.children[0].handle_wildcard_child(path, p);
             }
         } else if self.path == path {
+            // We should have reached the node containing the handle.
+			// Check if this node has a handle registered.
             if self.handle.is_some() {
                 return (self.handle.as_ref(), p, false);
             }
@@ -454,6 +490,8 @@ impl<T> Node<T> {
                 return (self.handle.as_ref(), p, true);
             }
 
+            // No handle found. Check if a handle for this path + a
+			// trailing slash exists for trailing slash recommendation
             for i in 0..self.indices.len() {
                 if self.indices[i] == b'/' {
                     let tsr = (self.path.len() == 1 && self.children[i].handle.is_some())
@@ -466,6 +504,8 @@ impl<T> Node<T> {
             return (self.handle.as_ref(), p, false);
         }
 
+        // Nothing found. We can recommend to redirect to the same URL with an
+		// extra trailing slash if a leaf exists for that path
         let tsr = (path == [b'/'])
             || (self.path.len() == path.len() + 1
                 && self.path[path.len()] == b'/'
@@ -482,12 +522,15 @@ impl<T> Node<T> {
     ) -> (Option<&T>, Option<Params>, bool) {
         match self.n_type {
             NodeType::Param => {
+                // find param end (either '/' or path end)
                 let mut end = 0;
                 while end < path.len() && path[end] != b'/' {
                     end += 1;
                 }
 
+                // save param value
                 if p.is_none() {
+                    // lazy allocation
                     p = Some(Params(Vec::with_capacity(self.max_params as usize)));
                 }
 
@@ -498,6 +541,7 @@ impl<T> Node<T> {
                     });
                 });
 
+                // we need to go deeper!
                 if end < path.len() {
                     if self.children.len() > 0 {
                         path = &path[end..];
@@ -505,6 +549,7 @@ impl<T> Node<T> {
                         return self.children[0].get_value_loop(path, p);
                     }
 
+                    // ... but we can't
                     let tsr = path.len() == end + 1;
                     return (None, p, tsr);
                 }
@@ -512,6 +557,8 @@ impl<T> Node<T> {
                 if self.handle.is_some() {
                     return (self.handle.as_ref(), p, false);
                 } else if self.children.len() == 1 {
+                    // No handle found. Check if a handle for this path + a
+                    // trailing slash exists for TSR recommendation
                     let tsr = self.children[0].path == &[b'/'] && self.children[0].handle.is_some();
                     return (None, p, tsr);
                 }
@@ -519,7 +566,9 @@ impl<T> Node<T> {
                 return (None, p, false);
             }
             NodeType::CatchAll => {
+                // save param value
                 if p.is_none() {
+                    // lazy allocation
                     p = Some(Params(Vec::with_capacity(self.max_params as usize)));
                 }
 
