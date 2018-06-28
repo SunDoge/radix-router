@@ -1,4 +1,4 @@
-/// use http::{Request, Response};
+// use http::{Request, Response};
 use futures::{future, IntoFuture};
 use hyper::error::Error;
 use hyper::service::Service;
@@ -6,7 +6,7 @@ use hyper::{Body, Request, Response};
 use std::collections::BTreeMap;
 use tree::Node;
 
-/// TODO think more about what a handler looks like
+// TODO think more about what a handler looks like
 /// Handle is a function that can be registered to a route to handle HTTP
 /// requests. Like http.HandlerFunc, but has a third parameter for the values of
 /// wildcards (variables).
@@ -167,7 +167,7 @@ where
         let (handle, p, _) = self.lookup(req.method().as_str(), req.uri().path());
         match handle {
             Some(h) => future::ok(h(req, p)),
-            /// Handle 404
+            // Handle 404
             _ => future::ok(Response::new(Body::from("not found"))),
         }
     }
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "path must begin with '/' in path 'something'")]
     fn handle_ivalid_path() {
-        /// use http::Response;
+        // use http::Response;
         use hyper::{Body, Request, Response};
         use router::Router;
 
