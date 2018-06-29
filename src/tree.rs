@@ -508,8 +508,7 @@ impl<T> Node<T> {
         // Nothing found. We can recommend to redirect to the same URL with an
         // extra trailing slash if a leaf exists for that path
         let tsr = (path == [b'/'])
-            || (self.path.len() == path.len() + 1
-                && self.path[path.len()] == b'/'
+            || (self.path.len() == path.len() + 1 && self.path[path.len()] == b'/'
                 && path == &self.path[..self.path.len() - 1]
                 && self.handle.is_some());
 
@@ -780,8 +779,7 @@ impl<T> Node<T> {
             if path == [b'/'] {
                 return true;
             }
-            if lo_path.len() + 1 == lo_n_path.len()
-                && lo_n_path[lo_path.len()] == b'/'
+            if lo_path.len() + 1 == lo_n_path.len() && lo_n_path[lo_path.len()] == b'/'
                 && lo_path[1..] == lo_n_path[1..lo_path.len()]
                 && self.handle.is_some()
             {
@@ -1291,5 +1289,257 @@ mod tests {
                 ),
             ],
         );
+    }
+
+    #[test]
+    fn test_empty_wildcard_name() {
+        let tree = Mutex::new(Node::new());
+        let routes = vec!["/user:", "/user:/", "/cmd/:/", "/src/*"];
+
+        for route in routes {
+            let mut recv = panic::catch_unwind(|| {
+                let mut guard = match tree.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.add_route(route, fake_handler(route));
+            });
+
+            if recv.is_ok() {
+                panic!(
+                    "no panic while inserting route with empty wildcard name '{}",
+                    route
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_tree_catch_all_conflict() {
+        let routes = vec![
+            ("/src/*filepath/x", true),
+            ("/src2/", false),
+            ("/src2/*filepath/x", true),
+        ];
+
+        test_routes(routes);
+    }
+
+    #[test]
+    fn test_tree_catch_all_conflict_root() {
+        let routes = vec![("/", false), ("/*filepath", true)];
+
+        test_routes(routes);
+    }
+
+    #[test]
+    fn test_tree_double_wildcard() {
+        let panic_msg = "only one wildcard per path segment is allowed";
+        let routes = vec!["/:foo:bar", "/:foo:bar/", "/:foo*bar"];
+
+        for route in routes {
+            let tree = Mutex::new(Node::new());
+            let mut recv = panic::catch_unwind(|| {
+                let mut guard = match tree.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.add_route(route, fake_handler(route));
+            });
+
+            // [TODO] Not strict enough
+            if recv.is_ok() {
+                panic!(panic_msg);
+            }
+        }
+    }
+
+    #[test]
+    fn test_tree_trailing_slash_redirect() {
+        let tree = Mutex::new(Node::new());
+        let routes = vec![
+            "/hi",
+            "/b/",
+            "/search/:query",
+            "/cmd/:tool/",
+            "/src/*filepath",
+            "/x",
+            "/x/y",
+            "/y/",
+            "/y/z",
+            "/0/:id",
+            "/0/:id/1",
+            "/1/:id/",
+            "/1/:id/2",
+            "/aa",
+            "/a/",
+            "/admin",
+            "/admin/:category",
+            "/admin/:category/:page",
+            "/doc",
+            "/doc/go_faq.html",
+            "/doc/go1.html",
+            "/no/a",
+            "/no/b",
+            "/api/hello/:name",
+        ];
+
+        for route in routes {
+            let mut recv = panic::catch_unwind(|| {
+                let mut guard = match tree.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.add_route(route, fake_handler(route));
+            });
+
+            if recv.is_err() {
+                panic!("panic inserting route '{}': {:?}", route, recv);
+            }
+        }
+
+        let tsr_routes = vec![
+            "/hi/",
+            "/b",
+            "/search/gopher/",
+            "/cmd/vet",
+            "/src",
+            "/x/",
+            "/y",
+            "/0/go/",
+            "/1/go",
+            "/a",
+            "/admin/",
+            "/admin/config/",
+            "/admin/config/permissions/",
+            "/doc/",
+        ];
+
+        for route in tsr_routes {
+            let mut guard = match tree.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let (handler, _, tsr) = guard.get_value(route);
+
+            if handler.is_some() {
+                panic!("non-nil handler for TSR route '{}'", route);
+            } else if !tsr {
+                panic!("expected TSR recommendation for route '{}'", route);
+            }
+        }
+
+        let no_tsr_routes = vec!["/", "/no", "/no/", "/_", "/_/", "/api/world/abc"];
+
+        for route in no_tsr_routes {
+            let mut guard = match tree.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let (handler, _, tsr) = guard.get_value(route);
+
+            if handler.is_some() {
+                panic!("non-nil handler for TSR route '{}'", route);
+            } else if tsr {
+                panic!("expected TSR recommendation for route '{}'", route);
+            }
+        }
+    }
+
+    #[test]
+    fn test_tree_root_trailing_slash_redirect() {
+        let tree = Mutex::new(Node::new());
+
+        let mut recv = panic::catch_unwind(|| {
+            let mut guard = match tree.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            guard.add_route("/:test", fake_handler("/:test"));
+        });
+
+        if recv.is_err() {
+            panic!("panic inserting test route: {:?}", recv);
+        }
+
+        let mut guard = match tree.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let (handler, _, tsr) = guard.get_value("/");
+
+        if handler.is_some() {
+            panic!("non-nil handler");
+        } else if tsr {
+            panic!("expected no TSR recommendation");
+        }
+    }
+
+    #[test]
+    fn test_tree_find_case_insensitive_path() {
+        let tree = Mutex::new(Node::new());
+
+        let routes = vec![
+            "/hi",
+            "/b/",
+            "/ABC/",
+            "/search/:query",
+            "/cmd/:tool/",
+            "/src/*filepath",
+            "/x",
+            "/x/y",
+            "/y/",
+            "/y/z",
+            "/0/:id",
+            "/0/:id/1",
+            "/1/:id/",
+            "/1/:id/2",
+            "/aa",
+            "/a/",
+            "/doc",
+            "/doc/go_faq.html",
+            "/doc/go1.html",
+            "/doc/go/away",
+            "/no/a",
+            "/no/b",
+            "/Π",
+            "/u/apfêl/",
+            "/u/äpfêl/",
+            "/u/öpfêl",
+            "/v/Äpfêl/",
+            "/v/Öpfêl",
+            "/w/♬",   // 3 byte
+            "/w/♭/",  // 3 byte, last byte differs
+            "/w/𠜎",  // 4 byte
+            "/w/𠜏/", // 4 byte
+        ];
+
+        for route in &routes {
+            let mut recv = panic::catch_unwind(|| {
+                let mut guard = match tree.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.add_route(route, fake_handler(route));
+            });
+
+            if recv.is_err() {
+                panic!("panic inserting route '{}': {:?}", route, recv);
+            }
+        }
+
+        for route in &routes {
+            let mut guard = match tree.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let (out, found) = guard.find_case_insensitive_path(route, false);
+
+            if !found {
+                panic!("Route '{}' not found!", route);
+            } else if str::from_utf8(&out).unwrap() != *route {
+                panic!("Wrong result for route '{}': {}", route, str::from_utf8(&out).unwrap());
+            }
+        }
     }
 }
