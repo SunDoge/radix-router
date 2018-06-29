@@ -591,23 +591,25 @@ impl<T> Node<T> {
         path: &str,
         fix_trailing_slash: bool,
     ) -> (Vec<u8>, bool) {
-        return self.find_case_insensitive_path_rec(
+        let mut ci_path = Vec::with_capacity(path.len() + 1);
+        let found = self.find_case_insensitive_path_rec(
             path.as_bytes(),
             path.to_lowercase().as_bytes(),
-            Vec::with_capacity(path.len() + 1),
+            &mut ci_path,
             [0; 4],
             fix_trailing_slash,
         );
+        (ci_path, found)
     }
 
     fn find_case_insensitive_path_rec(
         &mut self,
         mut path: &[u8],
         mut lo_path: &[u8],
-        mut ci_path: Vec<u8>,
+        ci_path: &mut Vec<u8>,
         mut rb: [u8; 4],
         fix_trailing_slash: bool,
-    ) -> (Vec<u8>, bool) {
+    ) -> bool {
         let lo_n_path = str::from_utf8(&self.path).unwrap().as_bytes();
 
         if lo_path.len() >= lo_n_path.len() && lo_n_path.len() == 0
@@ -627,31 +629,240 @@ impl<T> Node<T> {
                     if rb[0] != 0 {
                         for i in 0..self.indices.len() {
                             if self.indices[i] == rb[0] {
-                                return self.children[i].find_case_insensitive_path_rec(path, lo_path, ci_path, rb, fix_trailing_slash);
+                                return self.children[i].find_case_insensitive_path_rec(
+                                    path,
+                                    lo_path,
+                                    ci_path,
+                                    rb,
+                                    fix_trailing_slash,
+                                );
                             }
                         }
                     } else {
-                        
+                        let mut rv = 0 as char;
+
+                        let mut off = 0;
+
+                        for i in 0..min(lo_n_path.len(), 3) {
+                            let i = lo_n_path.len() - i;
+                            if rune_start(lo_old[i]) {
+                                rv = str::from_utf8(&lo_old[i..])
+                                    .unwrap()
+                                    .chars()
+                                    .next()
+                                    .unwrap();
+                                off = i;
+                                break;
+                            }
+                        }
+
+                        rv.encode_utf8(&mut rb);
+                        rb = shift_n_rune_bytes(rb, off);
+
+                        for i in 0..self.indices.len() {
+                            if self.indices[i] == rb[0] {
+                                let found = self.children[i].find_case_insensitive_path_rec(
+                                    path,
+                                    lo_path,
+                                    ci_path,
+                                    rb,
+                                    fix_trailing_slash,
+                                );
+
+                                if found {
+                                    return true;
+                                }
+                                break;
+                            }
+                        }
+
+                        let mut up = rv.to_uppercase();
+                        if !rv.is_uppercase() {
+                            up.next().unwrap().encode_utf8(&mut rb);
+                            rb = shift_n_rune_bytes(rb, off);
+
+                            for i in 0..self.indices.len() {
+                                if self.indices[i] == rb[0] {
+                                    return self.children[i].find_case_insensitive_path_rec(
+                                        path,
+                                        lo_path,
+                                        ci_path,
+                                        rb,
+                                        fix_trailing_slash,
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    return (fix_trailing_slash && path == [b'/'] && self.handle.is_some());
+                }
+
+                // return self.children[0].find_case_insensitive_path_rec_match(
+                //     path,
+                //     lo_path,
+                //     ci_path,
+                //     rb,
+                //     fix_trailing_slash,
+                // );
+                match self.n_type {
+                    NodeType::Param => {
+                        let mut k = 0;
+                        while k < path.len() && path[k] != b'/' {
+                            k += 1;
+                        }
+                        let mut path_k = path[..k].to_vec();
+                        ci_path.append(&mut path_k);
+
+                        if k < path.len() {
+                            if self.children.len() > 0 {
+                                lo_path = &lo_path[k..];
+                                path = &path[k..];
+
+                                return self.children[0].find_case_insensitive_path_rec(
+                                    path,
+                                    lo_path,
+                                    ci_path,
+                                    rb,
+                                    fix_trailing_slash,
+                                );
+                            }
+
+                            if fix_trailing_slash && path.len() == k + 1 {
+                                return true;
+                            }
+                            return false;
+                        }
+
+                        if self.handle.is_some() {
+                            return true;
+                        } else if fix_trailing_slash && self.children.len() == 1 {
+                            if self.children[0].path == [b'/'] && self.children[0].handle.is_some()
+                            {
+                                ci_path.push(b'/');
+                                return true;
+                            }
+                        }
+
+                        return true;
+                    }
+                    NodeType::CatchAll => {
+                        ci_path.append(&mut path.to_vec());
+                        return true;
+                    }
+                    _ => panic!("invalid node type"),
+                }
+            } else {
+                if self.handle.is_some() {
+                    return true;
+                }
+
+                if fix_trailing_slash {
+                    for i in 0..self.indices.len() {
+                        if self.indices[i] == b'/' {
+                            if (self.children[i].path.len() == 1
+                                && self.children[i].handle.is_some())
+                                || (self.children[i].n_type == NodeType::CatchAll
+                                    && self.children[i].children[0].handle.is_some())
+                            {
+                                ci_path.push(b'/');
+                                return true;
+                            }
+                            return false;
+                        }
                     }
                 }
+                return false;
             }
         }
 
-        (ci_path, false)
+        if fix_trailing_slash {
+            if path == [b'/'] {
+                return true;
+            }
+            if lo_path.len() + 1 == lo_n_path.len()
+                && lo_n_path[lo_path.len()] == b'/'
+                && lo_path[1..] == lo_n_path[1..lo_path.len()]
+                && self.handle.is_some()
+            {
+                ci_path.append(&mut self.path.clone());
+                return true;
+            }
+        }
+
+        false
     }
 
-   
+    // fn find_case_insensitive_path_rec_match(
+    //     &mut self,
+    //     mut path: &[u8],
+    //     mut lo_path: &[u8],
+    //     ci_path: &mut Vec<u8>,
+    //     mut rb: [u8; 4],
+    //     fix_trailing_slash: bool,
+    // ) -> (Vec<u8>, bool) {
+    //     match self.n_type {
+    //         NodeType::Param => {
+    //             let mut k = 0;
+    //             while k < path.len() && path[k] != b'/' {
+    //                 k += 1;
+    //             }
+
+    //             ci_path.append(&mut path[..k].to_vec());
+
+    //             if k < path.len() {
+    //                 if self.children.len() > 0 {
+    //                     lo_path = &lo_path[k..];
+    //                     path = &mut path[k..];
+
+    //                     return self.children[0].find_case_insensitive_path_rec(
+    //                         path,
+    //                         lo_path,
+    //                         ci_path,
+    //                         rb,
+    //                         fix_trailing_slash,
+    //                     );
+    //                 }
+
+    //                 if fix_trailing_slash && path.len() == k + 1 {
+    //                     return (ci_path.clone(), true);
+    //                 }
+    //                 return (ci_path.clone(), false);
+    //             }
+
+    //             if self.handle.is_some() {
+    //                 return (ci_path.clone(), true);
+    //             } else if fix_trailing_slash && self.children.len() == 1 {
+    //                 if self.children[0].path == [b'/'] && self.children[0].handle.is_some() {
+    //                     ci_path.push(b'/');
+    //                     return (ci_path.clone(), true);
+    //                 }
+    //             }
+
+    //             return (ci_path.clone(), false);
+    //         }
+    //         NodeType::CatchAll => {
+    //             ci_path.append(&mut path.to_vec());
+    //             (ci_path.clone(), true)
+    //         }
+    //         _ => panic!("invalid node type"),
+    //     }
+    // }
 }
 
- fn shift_n_rune_bytes(rb: [u8; 4], n: usize) -> [u8; 4] {
-        match n {
-            0 => rb,
-            1 => [rb[1], rb[2], rb[3], 0],
-            2 => [rb[2], rb[3], 0, 0],
-            3 => [rb[3], 0, 0, 0],
-            _ => [0; 4],
-        }
+fn shift_n_rune_bytes(rb: [u8; 4], n: usize) -> [u8; 4] {
+    match n {
+        0 => rb,
+        1 => [rb[1], rb[2], rb[3], 0],
+        2 => [rb[2], rb[3], 0, 0],
+        3 => [rb[3], 0, 0, 0],
+        _ => [0; 4],
     }
+}
+
+fn rune_start(b: u8) -> bool {
+    b & 0xC0 != 0x80
+}
 
 #[cfg(test)]
 mod tests {
