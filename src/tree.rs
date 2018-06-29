@@ -591,13 +591,15 @@ impl<T> Node<T> {
         path: &str,
         fix_trailing_slash: bool,
     ) -> (Vec<u8>, bool) {
-        return self.find_case_insensitive_path_rec(
+        let mut ci_path = Vec::with_capacity(path.len() + 1);
+        let found = self.find_case_insensitive_path_rec(
             path.as_bytes(),
             path.to_lowercase().as_bytes(),
-            &mut Vec::with_capacity(path.len() + 1),
+            &mut ci_path,
             [0; 4],
             fix_trailing_slash,
         );
+        (ci_path, found)
     }
 
     fn find_case_insensitive_path_rec(
@@ -607,7 +609,7 @@ impl<T> Node<T> {
         ci_path: &mut Vec<u8>,
         mut rb: [u8; 4],
         fix_trailing_slash: bool,
-    ) -> (Vec<u8>, bool) {
+    ) -> bool {
         let lo_n_path = str::from_utf8(&self.path).unwrap().as_bytes();
 
         if lo_path.len() >= lo_n_path.len() && lo_n_path.len() == 0
@@ -659,7 +661,7 @@ impl<T> Node<T> {
 
                         for i in 0..self.indices.len() {
                             if self.indices[i] == rb[0] {
-                                let (out, found) = self.children[i].find_case_insensitive_path_rec(
+                                let found = self.children[i].find_case_insensitive_path_rec(
                                     path,
                                     lo_path,
                                     ci_path,
@@ -668,7 +670,7 @@ impl<T> Node<T> {
                                 );
 
                                 if found {
-                                    return (out, true);
+                                    return true;
                                 }
                                 break;
                             }
@@ -693,10 +695,7 @@ impl<T> Node<T> {
                         }
                     }
 
-                    return (
-                        ci_path.clone(),
-                        (fix_trailing_slash && path == [b'/'] && self.handle.is_some()),
-                    );
+                    return (fix_trailing_slash && path == [b'/'] && self.handle.is_some());
                 }
 
                 // return self.children[0].find_case_insensitive_path_rec_match(
@@ -730,32 +729,32 @@ impl<T> Node<T> {
                             }
 
                             if fix_trailing_slash && path.len() == k + 1 {
-                                return (ci_path.clone(), true);
+                                return true;
                             }
-                            return (ci_path.clone(), false);
+                            return false;
                         }
 
                         if self.handle.is_some() {
-                            return (ci_path.clone(), true);
+                            return true;
                         } else if fix_trailing_slash && self.children.len() == 1 {
                             if self.children[0].path == [b'/'] && self.children[0].handle.is_some()
                             {
                                 ci_path.push(b'/');
-                                return (ci_path.clone(), true);
+                                return true;
                             }
                         }
 
-                        return (ci_path.clone(), false);
+                        return true;
                     }
                     NodeType::CatchAll => {
                         ci_path.append(&mut path.to_vec());
-                        return (ci_path.clone(), true);
+                        return true;
                     }
                     _ => panic!("invalid node type"),
                 }
             } else {
                 if self.handle.is_some() {
-                    return (ci_path.clone(), true);
+                    return true;
                 }
 
                 if fix_trailing_slash {
@@ -767,19 +766,19 @@ impl<T> Node<T> {
                                     && self.children[i].children[0].handle.is_some())
                             {
                                 ci_path.push(b'/');
-                                return (ci_path.clone(), true);
+                                return true;
                             }
-                            return (ci_path.clone(), false);
+                            return false;
                         }
                     }
                 }
-                return (ci_path.clone(), false);
+                return false;
             }
         }
 
         if fix_trailing_slash {
             if path == [b'/'] {
-                return (ci_path.clone(), true);
+                return true;
             }
             if lo_path.len() + 1 == lo_n_path.len()
                 && lo_n_path[lo_path.len()] == b'/'
@@ -787,11 +786,11 @@ impl<T> Node<T> {
                 && self.handle.is_some()
             {
                 ci_path.append(&mut self.path.clone());
-                return (ci_path.clone(), true);
+                return true;
             }
         }
 
-        (ci_path.clone(), false)
+        false
     }
 
     // fn find_case_insensitive_path_rec_match(
