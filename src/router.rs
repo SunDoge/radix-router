@@ -1,7 +1,7 @@
 // use http::{Request, Response};
 use futures::{future, IntoFuture};
 use hyper::error::Error;
-use hyper::service::Service;
+use hyper::service::{NewService, Service};
 use hyper::{Body, Request, Response};
 use std::collections::BTreeMap;
 use tree::Node;
@@ -47,6 +47,7 @@ impl Params {
 
 /// Router is a http.Handler which can be used to dispatch requests to different
 /// handler functions via configurable routes
+#[derive(Clone)]
 pub struct Router<T> {
     pub trees: BTreeMap<String, Node<T>>,
 }
@@ -94,9 +95,9 @@ impl<T> Router<T> {
     }
 
     /// Perhaps something like
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```ignore
     /// router.group(vec![middelware], |router| {
     ///     router.get("/something", somewhere);
@@ -182,6 +183,19 @@ impl<T> IntoFuture for Router<T> {
         future::ok(self)
     }
 }
+
+// impl<T> NewService for Router<T> {
+//     type ReqBody = Body;
+//     type ResBody = Body;
+//     type Error = Error;
+//     type Future = future::FutureResult<Response<Self::ResBody>, Self::Error>;
+//     type Service = Self;
+//     type InitError = Error;
+
+//     fn new_service(&self) -> Self::Future {
+
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

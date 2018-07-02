@@ -24,18 +24,20 @@ fn main() {
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
+    
+    let mut router: Router<Handle> = Router::new();
+    router.handle("GET", "/echo", get_echo);
+    router.handle("POST", "/echo", post_echo);
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
-    let new_service = || {
+    let new_service = move || {
         // This is the `Service` that will handle the connection.
         // `service_fn_ok` is a helper to convert a function that
         // returns a Response into a `Service`.
         // service_fn_ok(|_| {
         //     Response::new(Body::from(PHRASE))
         // })
-        let mut router: Router<Handle> = Router::new();
-        router.handle("GET", "/echo", get_echo);
-        router.handle("POST", "/echo", post_echo);
+        let router = router.clone();
         router
     };
 
