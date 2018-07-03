@@ -50,12 +50,26 @@ impl Params {
 #[derive(Clone)]
 pub struct Router<T> {
     pub trees: BTreeMap<String, Node<T>>,
+    redirect_trailing_slash: bool,
+    redirect_fixed_path: bool,
+    handle_method_not_allowed: bool,
+    handle_options: bool,
+    not_found: Option<T>,
+    method_not_allowed: Option<T>,
+    panic_handler: Option<T>,
 }
 
 impl<T> Router<T> {
     pub fn new() -> Router<T> {
         Router {
             trees: BTreeMap::new(),
+            redirect_trailing_slash: true,
+            redirect_fixed_path: true,
+            handle_method_not_allowed: true,
+            handle_options: true,
+            not_found: None,
+            method_not_allowed: None,
+            panic_handler: None,
         }
     }
 

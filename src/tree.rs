@@ -703,7 +703,7 @@ impl<T> Node<T> {
                         }
                     }
 
-                    return (fix_trailing_slash && path == [b'/'] && self.handle.is_some());
+                    return fix_trailing_slash && path == [b'/'] && self.handle.is_some();
                 }
 
                 return self.children[0].find_case_insensitive_path_rec_match(
@@ -758,7 +758,7 @@ impl<T> Node<T> {
         mut path: &[u8],
         mut lo_path: &[u8],
         ci_path: &mut Vec<u8>,
-        mut rb: [u8; 4],
+        rb: [u8; 4],
         fix_trailing_slash: bool,
     ) -> bool {
         match self.n_type {
@@ -1412,7 +1412,7 @@ mod tests {
     fn test_tree_root_trailing_slash_redirect() {
         let tree = Mutex::new(Node::new());
 
-        let mut recv = panic::catch_unwind(|| {
+        let recv = panic::catch_unwind(|| {
             let mut guard = match tree.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
