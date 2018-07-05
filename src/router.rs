@@ -1,9 +1,11 @@
 // use http::{Request, Response};
 use futures::{future, IntoFuture};
 use hyper::error::Error;
+use hyper::rt::Future;
 use hyper::service::{NewService, Service};
 use hyper::{Body, Request, Response};
 use std::collections::BTreeMap;
+use std::io;
 use tree::Node;
 
 // TODO think more about what a handler looks like
@@ -11,6 +13,8 @@ use tree::Node;
 /// requests. Like http.HandlerFunc, but has a third parameter for the values of
 /// wildcards (variables).
 pub type Handle = fn(Request<Body>, Option<Params>) -> Response<Body>;
+// pub type ResponseFuture = Box<Future<Item=Response<Body>, Error=Error> + Send>;
+pub type BoxFut = Box<Future<Item = Response<Body>, Error = Error> + Send>;
 
 /// Param is a single URL parameter, consisting of a key and a value.
 #[derive(Debug, Clone, PartialEq)]
@@ -136,6 +140,14 @@ impl<T> Router<T> {
         }
     }
 
+    /// Use `service_fn` over it.
+    pub fn serve_http(&mut self, req: Request<Body>) -> BoxFut {
+        // if self.panic_handler.is_some() {
+        //     // recover
+        // }
+        unimplemented!()
+    }
+
     /// Handle registers a new request handle with the given path and method.
     ///
     /// For GET, POST, PUT, PATCH and DELETE requests the respective shortcut
@@ -198,18 +210,21 @@ impl<T> IntoFuture for Router<T> {
     }
 }
 
-// impl<T> NewService for Router<T> {
-//     type ReqBody = Body;
-//     type ResBody = Body;
-//     type Error = Error;
-//     type Future = future::FutureResult<Response<Self::ResBody>, Self::Error>;
-//     type Service = Self;
-//     type InitError = Error;
+impl<T> NewService for Router<T>
+where
+    T: Fn(Request<Body>, Option<Params>) -> Response<Body>,
+{
+    type ReqBody = Body;
+    type ResBody = Body;
+    type Error = Error;
+    type Service = Self;
+    type Future = future::FutureResult<Self, Self::Error>;
+    type InitError = Error;
 
-//     fn new_service(&self) -> Self::Future {
-
-//     }
-// }
+    fn new_service(&self) -> Self::Future {
+        unimplemented!()
+    }
+}
 
 #[cfg(test)]
 mod tests {
