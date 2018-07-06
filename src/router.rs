@@ -3,7 +3,7 @@ use futures::{future, IntoFuture};
 use hyper::error::Error;
 use hyper::rt::Future;
 use hyper::service::{NewService, Service};
-use hyper::{Body, Request, Response};
+use hyper::{Body, Request, Response, Method, StatusCode};
 use std::collections::BTreeMap;
 use std::io;
 use tree::Node;
@@ -141,26 +141,13 @@ impl<T> Router<T> {
     }
 
     /// Use `service_fn` over it.
-    pub fn serve_http(&mut self, req: Request<Body>) -> BoxFut {
+    // pub fn serve_http(&mut self, req: Request<Body>) -> BoxFut {
         // if self.panic_handler.is_some() {
         //     // recover
         // }
         // unimplemented!()
-        let method = req.method().as_str();
-        let path = req.uri().path();
-        let mut response = Response::new(Body::empty());
-
-        let root = self.trees.get_mut(method);
-        if let Some(root) = root {
-            let (handle, ps, tsr) = root.get_value(path);
-
-            if let Some(handle) = handle {
-                return handle(req, response, ps)
-            }
-        }
-
-        Box::new(future::ok(Response::new(Body::from("bytes"))))
-    }
+        
+    // }
 
     /// Handle registers a new request handle with the given path and method.
     ///
@@ -211,7 +198,23 @@ where
         //     // Handle 404
         //     _ => future::ok(Response::new(Body::from("not found"))),
         // }
-        self.serve_http(req)
+        // self.serve_http(req)
+        // let method = req.method().as_str();
+        // let path = req.uri().path();
+        let mut response = Response::new(Body::empty());
+
+        let root = self.trees.get_mut(req.method().as_str());
+        if let Some(root) = root {
+            let (handle, ps, tsr) = root.get_value(req.uri().path());
+
+            if let Some(handle) = handle {
+                return handle(req, response, ps);
+            } else if req.method() != &Method::CONNECT && req.uri().path() != "/" {
+                // let mut code = 
+            }
+        }
+
+        Box::new(future::ok(Response::new(Body::from("bytes"))))
     }
 }
 
