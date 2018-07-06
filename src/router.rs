@@ -12,7 +12,7 @@ use tree::Node;
 /// Handle is a function that can be registered to a route to handle HTTP
 /// requests. Like http.HandlerFunc, but has a third parameter for the values of
 /// wildcards (variables).
-pub type Handle = fn(Request<Body>, Option<Params>) -> Response<Body>;
+pub type Handle = fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut;
 // pub type ResponseFuture = Box<Future<Item=Response<Body>, Error=Error> + Send>;
 pub type BoxFut = Box<Future<Item = Response<Body>, Error = Error> + Send>;
 
@@ -145,7 +145,16 @@ impl<T> Router<T> {
         // if self.panic_handler.is_some() {
         //     // recover
         // }
-        unimplemented!()
+        // unimplemented!()
+        let method = req.method().as_str();
+        let path = req.uri().path();
+
+        let root = self.trees.get_mut(method);
+        if let Some(root) = root {
+            let (handle, ps, tsr) = root.get_value(path);
+        }
+
+        Box::new(future::ok(Response::new(Body::from("bytes"))))
     }
 
     /// Handle registers a new request handle with the given path and method.
@@ -183,20 +192,21 @@ impl<T> Router<T> {
 /// Service makes the router implement the router.handler interface.
 impl<T> Service for Router<T>
 where
-    T: Fn(Request<Body>, Option<Params>) -> Response<Body>,
+    T: Fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut,
 {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = Error;
-    type Future = future::FutureResult<Response<Self::ResBody>, Self::Error>;
+    type Future = BoxFut;
 
     fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
-        let (handle, p, _) = self.lookup(req.method().as_str(), req.uri().path());
-        match handle {
-            Some(h) => future::ok(h(req, p)),
-            // Handle 404
-            _ => future::ok(Response::new(Body::from("not found"))),
-        }
+        // let (handle, p, _) = self.lookup(req.method().as_str(), req.uri().path());
+        // match handle {
+        //     Some(h) => future::ok(h(req, p)),
+        //     // Handle 404
+        //     _ => future::ok(Response::new(Body::from("not found"))),
+        // }
+        self.serve_http(req)
     }
 }
 
@@ -210,21 +220,21 @@ impl<T> IntoFuture for Router<T> {
     }
 }
 
-impl<T> NewService for Router<T>
-where
-    T: Fn(Request<Body>, Option<Params>) -> Response<Body>,
-{
-    type ReqBody = Body;
-    type ResBody = Body;
-    type Error = Error;
-    type Service = Self;
-    type Future = future::FutureResult<Self, Self::Error>;
-    type InitError = Error;
+// impl<T> NewService for Router<T>
+// where
+//     T: Fn(Request<Body>, Option<Params>) -> Response<Body>,
+// {
+//     type ReqBody = Body;
+//     type ResBody = Body;
+//     type Error = Error;
+//     type Service = Self;
+//     type Future = future::FutureResult<Self, Self::Error>;
+//     type InitError = Error;
 
-    fn new_service(&self) -> Self::Future {
-        unimplemented!()
-    }
-}
+//     fn new_service(&self) -> Self::Future {
+//         unimplemented!()
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
