@@ -148,10 +148,15 @@ impl<T> Router<T> {
         // unimplemented!()
         let method = req.method().as_str();
         let path = req.uri().path();
+        let mut response = Response::new(Body::empty());
 
         let root = self.trees.get_mut(method);
         if let Some(root) = root {
             let (handle, ps, tsr) = root.get_value(path);
+
+            if let Some(handle) = handle {
+                return handle(req, response, ps)
+            }
         }
 
         Box::new(future::ok(Response::new(Body::from("bytes"))))
