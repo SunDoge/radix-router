@@ -4,7 +4,7 @@ extern crate pretty_env_logger;
 extern crate radix_router;
 
 use futures::future;
-use hyper::rt::{self, Future};
+use hyper::rt::{self, Future, Stream};
 use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server};
 use radix_router::router::Params;
@@ -25,14 +25,45 @@ fn post_echo(req: Request<Body>, mut response: Response<Body>, _: Option<Params>
     Box::new(future::ok(response))
 }
 
+fn post_echo_uppercase(
+    req: Request<Body>,
+    mut response: Response<Body>,
+    _: Option<Params>,
+) -> BoxFut {
+    let mapping = req.into_body().map(|chunk| {
+        chunk
+            .iter()
+            .map(|byte| byte.to_ascii_uppercase())
+            .collect::<Vec<u8>>()
+    });
+
+    *response.body_mut() = Body::wrap_stream(mapping);
+    Box::new(future::ok(response))
+}
+
+fn post_echo_reversed(
+    req: Request<Body>,
+    mut response: Response<Body>,
+    _: Option<Params>,
+) -> BoxFut {
+    let reversed = req.into_body().concat2().map(move |chunk| {
+        let body = chunk.iter().rev().cloned().collect::<Vec<u8>>();
+        *response.body_mut() = Body::from(body);
+        response
+    });
+    Box::new(reversed)
+}
+
 fn main() {
     pretty_env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
     let mut router: Router<Handle> = Router::new();
-    router.handle("GET", "/echo", get_echo);
-    router.handle("POST", "/echo", post_echo);
+    router.get("/", get_echo);
+    router.post("/echo", post_echo);
+    router.post("/echo/uppercase", post_echo_uppercase);
+    router.post("/echo/reversed", post_echo_reversed);
 
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.

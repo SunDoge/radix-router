@@ -3,10 +3,11 @@ use futures::{future, IntoFuture};
 use hyper::error::Error;
 use hyper::rt::Future;
 use hyper::service::{NewService, Service};
-use hyper::{Body, Request, Response, Method, StatusCode};
+use hyper::{Body, Request, Response, Method, StatusCode, header};
 use std::collections::BTreeMap;
 use std::io;
 use tree::Node;
+use path::clean_path;
 
 // TODO think more about what a handler looks like
 /// Handle is a function that can be registered to a route to handle HTTP
@@ -179,6 +180,49 @@ impl<T> Router<T> {
             .and_then(|n| Some(n.get_value(path)))
             .unwrap_or((None, None, false))
     }
+
+    pub fn allowed(&self, path: &str, req_method: &str)-> String {
+        let mut allow = String::new();
+        if path == "*" {
+            for method in self.trees.keys() {
+                if method == "OPTIONS" {
+                    continue;
+                }
+
+                if allow.is_empty() {
+                    allow.push_str(method);
+                } else {
+                    allow.push_str(", ");
+                    allow.push_str(method);
+                }
+            }
+        } else {
+            for method in self.trees.keys() {
+                if method == req_method || method == "OPTIONS" {
+                    continue;
+                }
+
+                self.trees.get(method).map(|tree| {
+                    let (handle, _, _) = tree.get_value(path);
+
+                    if handle.is_some() {
+                        if allow.is_empty() {
+                            allow.push_str(method);
+                        } else {
+                            allow.push_str(", ");
+                            allow.push_str(method);
+                        }
+                    }
+                });
+            }
+        }
+
+        if allow.len() > 0 {
+            allow += ", OPTIONS";
+        }
+
+        allow
+    }
 }
 
 /// Service makes the router implement the router.handler interface.
@@ -203,18 +247,76 @@ where
         // let path = req.uri().path();
         let mut response = Response::new(Body::empty());
 
-        let root = self.trees.get_mut(req.method().as_str());
+        let root = self.trees.get(req.method().as_str());
         if let Some(root) = root {
             let (handle, ps, tsr) = root.get_value(req.uri().path());
 
             if let Some(handle) = handle {
                 return handle(req, response, ps);
             } else if req.method() != &Method::CONNECT && req.uri().path() != "/" {
-                // let mut code = 
+                let code = if req.method() != &Method::GET {
+                    StatusCode::from_u16(307).unwrap()
+                } else {
+                    StatusCode::from_u16(301).unwrap()
+                };
+
+                if tsr && self.redirect_trailing_slash {
+                    let path = if req.uri().path().len() > 1 && req.uri().path().ends_with("/") {
+                        req.uri().path()[..req.uri().path().len() - 1].to_string()
+                    } else {
+                        req.uri().path().to_string() + "/"
+                    };
+
+                    response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&path).unwrap());
+                    *response.status_mut() = code;
+                    return Box::new(future::ok(response));
+                }
+
+                if self.redirect_fixed_path {
+                    let (fixed_path, found) = root.find_case_insensitive_path(&clean_path(req.uri().path()), self.redirect_trailing_slash);
+
+                    if found {
+                         response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&fixed_path).unwrap());
+                        *response.status_mut() = code;
+                        return Box::new(future::ok(response));
+                    }
+                }
             }
         }
 
-        Box::new(future::ok(Response::new(Body::from("bytes"))))
+        if req.method() == &Method::OPTIONS && self.handle_options {
+            let allow = self.allowed(req.uri().path(), req.method().as_str());
+            if allow.len() > 0 {
+                *response.headers_mut().get_mut("allow").unwrap() = header::HeaderValue::from_str(&allow).unwrap();
+                return Box::new(future::ok(response));
+            }
+
+        } else {
+            if self.handle_method_not_allowed {
+                let allow = self.allowed(req.uri().path(), req.method().as_str());
+
+                if allow.len() > 0 {
+                    *response.headers_mut().get_mut("allow").unwrap() = header::HeaderValue::from_str(&allow).unwrap();
+
+                    if let Some(ref method_not_allowed) = self.method_not_allowed {
+                        return method_not_allowed(req,response, None);
+                    } else {
+                        *response.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+                        *response.body_mut() = Body::from("METHOD_NOT_ALLOWED");
+                    }
+
+                    return Box::new(future::ok(response));
+                }
+            }
+            
+        }
+
+        if let Some(ref not_found) = self.not_found {
+            return not_found(req, response, None);
+        } else {
+            *response.status_mut() = StatusCode::NOT_FOUND;
+            return Box::new(future::ok(response));
+        }
     }
 }
 

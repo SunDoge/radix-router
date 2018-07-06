@@ -445,14 +445,14 @@ impl<T> Node<T> {
     /// If no handle can be found, a TSR (trailing slash redirect) recommendation is
     /// made if a handle exists with an extra (without the) trailing slash for the
     /// given path.
-    pub fn get_value(&mut self, path: &str) -> (Option<&T>, Option<Params>, bool) {
+    pub fn get_value(&self, path: &str) -> (Option<&T>, Option<Params>, bool) {
         // let mut handle = None;
         self.get_value_loop(path.as_ref(), None)
     }
 
     /// outer loop for walking the tree
     fn get_value_loop(
-        &mut self,
+        &self,
         mut path: &[u8],
         p: Option<Params>,
     ) -> (Option<&T>, Option<Params>, bool) {
@@ -508,7 +508,8 @@ impl<T> Node<T> {
         // Nothing found. We can recommend to redirect to the same URL with an
         // extra trailing slash if a leaf exists for that path
         let tsr = (path == [b'/'])
-            || (self.path.len() == path.len() + 1 && self.path[path.len()] == b'/'
+            || (self.path.len() == path.len() + 1
+                && self.path[path.len()] == b'/'
                 && path == &self.path[..self.path.len() - 1]
                 && self.handle.is_some());
 
@@ -516,7 +517,7 @@ impl<T> Node<T> {
     }
 
     fn handle_wildcard_child(
-        &mut self,
+        &self,
         mut path: &[u8],
         mut p: Option<Params>,
     ) -> (Option<&T>, Option<Params>, bool) {
@@ -585,11 +586,11 @@ impl<T> Node<T> {
         }
     }
 
-    fn find_case_insensitive_path(
-        &mut self,
+    pub fn find_case_insensitive_path(
+        &self,
         path: &str,
         fix_trailing_slash: bool,
-    ) -> (Vec<u8>, bool) {
+    ) -> (String, bool) {
         let mut ci_path = Vec::with_capacity(path.len() + 1);
         let found = self.find_case_insensitive_path_rec(
             path.as_bytes(),
@@ -598,11 +599,11 @@ impl<T> Node<T> {
             [0; 4],
             fix_trailing_slash,
         );
-        (ci_path, found)
+        (String::from_utf8(ci_path).unwrap(), found)
     }
 
     fn find_case_insensitive_path_rec(
-        &mut self,
+        &self,
         mut path: &[u8],
         mut lo_path: &[u8],
         ci_path: &mut Vec<u8>,
@@ -685,7 +686,6 @@ impl<T> Node<T> {
 
                         let up = rv.to_ascii_uppercase();
                         if up != rv {
-                            
                             up.encode_utf8(&mut rb);
                             rb = shift_n_rune_bytes(rb, off);
 
@@ -741,7 +741,8 @@ impl<T> Node<T> {
             if path == [b'/'] {
                 return true;
             }
-            if lo_path.len() + 1 == lo_n_path.len() && lo_n_path[lo_path.len()] == b'/'
+            if lo_path.len() + 1 == lo_n_path.len()
+                && lo_n_path[lo_path.len()] == b'/'
                 && lo_path[1..] == lo_n_path[1..lo_path.len()]
                 && self.handle.is_some()
             {
@@ -754,7 +755,7 @@ impl<T> Node<T> {
     }
 
     fn find_case_insensitive_path_rec_match(
-        &mut self,
+        &self,
         mut path: &[u8],
         mut lo_path: &[u8],
         ci_path: &mut Vec<u8>,
@@ -1503,11 +1504,11 @@ mod tests {
             if !found {
                 panic!("Route '{}' not found!", route);
             // println!("Route '{}' not found!", route);
-            } else if str::from_utf8(&out).unwrap() != *route {
+            } else if out != *route {
                 panic!(
                     "Wrong result for route '{}': {}",
                     route,
-                    str::from_utf8(&out).unwrap()
+                    out
                 );
             }
         }
