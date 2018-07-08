@@ -8,14 +8,35 @@ use std::collections::BTreeMap;
 use std::io;
 use tree::Node;
 use path::clean_path;
+use tokio_fs;
+use tokio_io;
+use hyper;
 
 // TODO think more about what a handler looks like
 /// Handle is a function that can be registered to a route to handle HTTP
 /// requests. Like http.HandlerFunc, but has a third parameter for the values of
 /// wildcards (variables).
-pub type Handle = fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut;
+// pub type Handle = fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut;
 // pub type ResponseFuture = Box<Future<Item=Response<Body>, Error=Error> + Send>;
-pub type BoxFut = Box<Future<Item = Response<Body>, Error = Error> + Send>;
+pub type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
+
+pub trait Handle {
+    fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut;
+}
+
+impl Handle for Fn(Request<Body>, Option<Params>) -> BoxFut {
+    fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut {
+        (*self)(req, ps)
+    }
+}
+
+impl Handle for Handler {
+    fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut {
+        (*self)(req, ps)
+    }
+}
+
+pub type Handler = fn(Request<Body>, Option<Params>) -> BoxFut;
 
 /// Param is a single URL parameter, consisting of a key and a value.
 #[derive(Debug, Clone, PartialEq)]
@@ -135,11 +156,19 @@ impl<T> Router<T> {
     /// To use the operating system's file system implementation,
     /// use http.Dir:
     ///     router.serve_files("/src/*filepath", http.Dir("/var/www"))
-    pub fn serve_files(&mut self, path: &str) {
-        if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
-            panic!("path must end with /*filepath in path '{}'", path);
-        }
-    }
+    // pub fn serve_files(&mut self, path: &str, dir: &str) {
+    //     if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
+    //         panic!("path must end with /*filepath in path '{}'", path);
+    //     }
+
+    //     let get_files = |req: Request<Body>, _: Response<Body>, ps: Option<Params>| -> BoxFut{
+    //         // let f = [dir, "/", ps.by_name("filepath")].concat();
+    //         // ps.unwrap_or
+    //         simple_file_send("f")
+    //     };
+
+    //     self.get(path, get_files);
+    // }
 
     /// Use `service_fn` over it.
     // pub fn serve_http(&mut self, req: Request<Body>) -> BoxFut {
@@ -228,7 +257,8 @@ impl<T> Router<T> {
 /// Service makes the router implement the router.handler interface.
 impl<T> Service for Router<T>
 where
-    T: Fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut,
+    // T: Fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut,
+    T: Handle
 {
     type ReqBody = Body;
     type ResBody = Body;
@@ -245,19 +275,22 @@ where
         // self.serve_http(req)
         // let method = req.method().as_str();
         // let path = req.uri().path();
-        let mut response = Response::new(Body::empty());
+        // let mut response = Response::new(Body::empty());
 
         let root = self.trees.get(req.method().as_str());
         if let Some(root) = root {
             let (handle, ps, tsr) = root.get_value(req.uri().path());
 
             if let Some(handle) = handle {
-                return handle(req, response, ps);
+                // return handle(req, response, ps);
+                return handle.handle(req, ps);
             } else if req.method() != &Method::CONNECT && req.uri().path() != "/" {
                 let code = if req.method() != &Method::GET {
-                    StatusCode::from_u16(307).unwrap()
+                    // StatusCode::from_u16(307).unwrap()
+                    307
                 } else {
-                    StatusCode::from_u16(301).unwrap()
+                    // StatusCode::from_u16(301).unwrap()
+                    301
                 };
 
                 if tsr && self.redirect_trailing_slash {
@@ -267,8 +300,9 @@ where
                         req.uri().path().to_string() + "/"
                     };
 
-                    response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&path).unwrap());
-                    *response.status_mut() = code;
+                    // response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&path).unwrap());
+                    // *response.status_mut() = code;
+                    let response = Response::builder().header("Location", path.as_str()).status(code).body(Body::empty()).unwrap();
                     return Box::new(future::ok(response));
                 }
 
@@ -276,8 +310,9 @@ where
                     let (fixed_path, found) = root.find_case_insensitive_path(&clean_path(req.uri().path()), self.redirect_trailing_slash);
 
                     if found {
-                         response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&fixed_path).unwrap());
-                        *response.status_mut() = code;
+                        //  response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&fixed_path).unwrap());
+                        // *response.status_mut() = code;
+                        let response = Response::builder().header("Location", fixed_path.as_str()).status(code).body(Body::empty()).unwrap();
                         return Box::new(future::ok(response));
                     }
                 }
@@ -287,7 +322,8 @@ where
         if req.method() == &Method::OPTIONS && self.handle_options {
             let allow = self.allowed(req.uri().path(), req.method().as_str());
             if allow.len() > 0 {
-                *response.headers_mut().get_mut("allow").unwrap() = header::HeaderValue::from_str(&allow).unwrap();
+                // *response.headers_mut().get_mut("allow").unwrap() = header::HeaderValue::from_str(&allow).unwrap();
+                let response = Response::builder().header("Allow", allow.as_str()).body(Body::empty()).unwrap();
                 return Box::new(future::ok(response));
             }
 
@@ -296,10 +332,10 @@ where
                 let allow = self.allowed(req.uri().path(), req.method().as_str());
 
                 if allow.len() > 0 {
-                    *response.headers_mut().get_mut("allow").unwrap() = header::HeaderValue::from_str(&allow).unwrap();
+                    let mut response = Response::builder().header("Allow", allow.as_str()).body(Body::empty()).unwrap();
 
                     if let Some(ref method_not_allowed) = self.method_not_allowed {
-                        return method_not_allowed(req,response, None);
+                        return method_not_allowed.handle(req, None);
                     } else {
                         *response.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
                         *response.body_mut() = Body::from("METHOD_NOT_ALLOWED");
@@ -312,9 +348,10 @@ where
         }
 
         if let Some(ref not_found) = self.not_found {
-            return not_found(req, response, None);
+            return not_found.handle(req, None);
         } else {
-            *response.status_mut() = StatusCode::NOT_FOUND;
+            // *response.status_mut() = StatusCode::NOT_FOUND;
+            let response = Response::builder().status(404).body(Body::empty()).unwrap();
             return Box::new(future::ok(response));
         }
     }
@@ -330,19 +367,46 @@ impl<T> IntoFuture for Router<T> {
     }
 }
 
+fn simple_file_send(f: &str) -> BoxFut {
+    // Serve a file by asynchronously reading it entirely into memory.
+    // Uses tokio_fs to open file asynchronously, then tokio_io to read into
+    // memory asynchronously.
+    let filename = f.to_string(); // we need to copy for lifetime issues
+    Box::new(tokio_fs::file::File::open(filename)
+        .and_then(|file| {
+            let buf: Vec<u8> = Vec::new();
+            tokio_io::io::read_to_end(file, buf)
+                .and_then(|item| {
+                    Ok(Response::new(item.1.into()))
+                })
+                .or_else(|_| {
+                    Ok(Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .unwrap())
+                })
+        })
+        .or_else(|_| {
+            Ok(Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from("NOTFOUND"))
+                .unwrap())
+        }))
+}
+
 // impl<T> NewService for Router<T>
 // where
-//     T: Fn(Request<Body>, Option<Params>) -> Response<Body>,
+//     T: Fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut,
 // {
 //     type ReqBody = Body;
 //     type ResBody = Body;
 //     type Error = Error;
 //     type Service = Self;
-//     type Future = future::FutureResult<Self, Self::Error>;
+//     type Future = future::FutureResult<Self::Service, Self::InitError>;
 //     type InitError = Error;
 
 //     fn new_service(&self) -> Self::Future {
-//         unimplemented!()
+//         future::ok(*self.clone())
 //     }
 // }
 
