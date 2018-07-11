@@ -440,13 +440,14 @@ mod tests {
     fn handle_ivalid_path() {
         // use http::Response;
         use hyper::{Body, Request, Response};
-        use router::Router;
+        use router::{Router, BoxFut};
+        use futures::future;
 
         let path = "something";
         let mut router = Router::new();
 
-        router.handle("GET", path, |_req: Request<Body>| {
-            Response::new(Body::from("test"))
+        router.handle("GET", path, |_req: Request<Body>, _| -> BoxFut {
+            Box::new(future::ok(Response::new(Body::from("test"))))
         });
     }
 }
