@@ -160,15 +160,18 @@ impl Router {
     /// To use the operating system's file system implementation,
     /// use http.Dir:
     ///     router.serve_files("/src/*filepath", http.Dir("/var/www"))
-    pub fn serve_files(&mut self, path: &str, root: &str) {
+    pub fn serve_files(&mut self, path: &str, root: &'static str) {
         if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
             panic!("path must end with /*filepath in path '{}'", path);
         }
-        let server_path = Path::new(root).join(path).to_str().unwrap();
-        let get_files = move |req: Request<Body>, _| -> BoxFut{
+        let root_path = Path::new(root);
+        let get_files = move |_, ps: Option<Params>| -> BoxFut{
             // let f = [dir, "/", ps.by_name("filepath")].concat();
-            // ps.unwrap_or
-            simple_file_send(server_path)
+            let ps = ps.unwrap();
+            let filename = ps.by_name("filepath").unwrap();
+            let file_path = root_path.join(&filename[1..]);
+            println!("{}", file_path.to_str().unwrap());
+            simple_file_send(file_path.to_str().unwrap())
         };
 
         self.get(path, get_files);

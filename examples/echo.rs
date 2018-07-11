@@ -67,6 +67,7 @@ fn main() {
     router.get("/some", move |_,_| -> BoxFut {
         Box::new(future::ok(Response::builder().body(some_str.into()).unwrap()))
     });
+    router.serve_files("/examples/*filepath", "/Users/sundoge/Code/rust/acrouter/examples");
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
     let new_service = move || {
