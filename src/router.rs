@@ -2,10 +2,9 @@
 use futures::{future, IntoFuture};
 use hyper::error::Error;
 use hyper::rt::Future;
-use hyper::service::{NewService, Service};
-use hyper::{Body, Request, Response, Method, StatusCode, header};
+use hyper::service::{ Service};
+use hyper::{Body, Request, Response, Method, StatusCode};
 use std::collections::BTreeMap;
-use std::io;
 use tree::Node;
 use path::clean_path;
 use tokio_fs;

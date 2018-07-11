@@ -1425,7 +1425,7 @@ mod tests {
             panic!("panic inserting test route: {:?}", recv);
         }
 
-        let mut guard = match tree.lock() {
+        let guard = match tree.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };
@@ -1505,11 +1505,7 @@ mod tests {
                 panic!("Route '{}' not found!", route);
             // println!("Route '{}' not found!", route);
             } else if out != *route {
-                panic!(
-                    "Wrong result for route '{}': {}",
-                    route,
-                    out
-                );
+                panic!("Wrong result for route '{}': {}", route, out);
             }
         }
     }

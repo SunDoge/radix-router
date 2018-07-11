@@ -5,11 +5,9 @@ extern crate radix_router;
 
 use futures::future;
 use hyper::rt::{self, Future, Stream};
-use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server};
 use radix_router::router::Params;
-use radix_router::router::{BoxFut, Handle, Handler, Router};
-use std::sync::Arc;
+use radix_router::router::{BoxFut, Router};
 
 // static PHRASE: &'static [u8] = b"Hello World!";
 
@@ -64,8 +62,10 @@ fn main() {
     router.post("/echo", post_echo);
     router.post("/echo/uppercase", post_echo_uppercase);
     router.post("/echo/reversed", post_echo_reversed);
-    router.get("/some", move |_,_| -> BoxFut {
-        Box::new(future::ok(Response::builder().body(some_str.into()).unwrap()))
+    router.get("/some", move |_, _| -> BoxFut {
+        Box::new(future::ok(
+            Response::builder().body(some_str.into()).unwrap(),
+        ))
     });
     router.serve_files("/examples/*filepath", "examples");
     // new_service is run for each connection, creating a 'service'
