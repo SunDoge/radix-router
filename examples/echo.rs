@@ -8,7 +8,8 @@ use hyper::rt::{self, Future, Stream};
 use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server};
 use radix_router::router::Params;
-use radix_router::router::{BoxFut, Router, Handler};
+use radix_router::router::{BoxFut, Handle, Handler, Router};
+use std::sync::Arc;
 
 // static PHRASE: &'static [u8] = b"Hello World!";
 
@@ -57,14 +58,15 @@ fn main() {
     pretty_env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();
-
-    let mut router: Router<Handler> = Router::new();
+    let some_str = "Some";
+    let mut router = Router::new();
     router.get("/", get_echo);
     router.post("/echo", post_echo);
     router.post("/echo/uppercase", post_echo_uppercase);
     router.post("/echo/reversed", post_echo_reversed);
-    router.get("/some", |req, ps| Box::new(future::ok(Response::new(Body::empty()))));
-
+    router.get("/some", move |_,_| -> BoxFut {
+        Box::new(future::ok(Response::builder().body(some_str.into()).unwrap()))
+    });
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
     let new_service = move || {
@@ -74,6 +76,10 @@ fn main() {
         // service_fn_ok(|_| {
         //     Response::new(Body::from(PHRASE))
         // })
+
+        // router.get("/some", |req, ps| {
+        //     Box::new(future::ok(Response::new(Body::empty())))
+        // });
         router.clone()
     };
 

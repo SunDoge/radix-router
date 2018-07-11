@@ -11,6 +11,8 @@ use path::clean_path;
 use tokio_fs;
 use tokio_io;
 use hyper;
+use std::sync::Arc;
+use std::path::Path;
 
 // TODO think more about what a handler looks like
 /// Handle is a function that can be registered to a route to handle HTTP
@@ -24,19 +26,21 @@ pub trait Handle {
     fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut;
 }
 
-impl Handle for Fn(Request<Body>, Option<Params>) -> BoxFut {
+impl<F> Handle for F where F: Fn(Request<Body>, Option<Params>) -> BoxFut {
     fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut {
         (*self)(req, ps)
     }
 }
 
-impl Handle for Handler {
-    fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut {
-        (*self)(req, ps)
-    }
-}
 
-pub type Handler = fn(Request<Body>, Option<Params>) -> BoxFut;
+// impl Handle for Handler {
+//     fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut {
+//         (*self)(req, ps)
+//     }
+// }
+
+// pub type Handler = fn(Request<Body>, Option<Params>) -> BoxFut;
+pub type Handler = Arc<Handle + Send + Sync>;
 
 /// Param is a single URL parameter, consisting of a key and a value.
 #[derive(Debug, Clone, PartialEq)]
@@ -74,19 +78,19 @@ impl Params {
 /// Router is a http.Handler which can be used to dispatch requests to different
 /// handler functions via configurable routes
 #[derive(Clone)]
-pub struct Router<T> {
-    pub trees: BTreeMap<String, Node<T>>,
+pub struct Router {
+    pub trees: BTreeMap<String, Node<Handler>>,
     redirect_trailing_slash: bool,
     redirect_fixed_path: bool,
     handle_method_not_allowed: bool,
     handle_options: bool,
-    not_found: Option<T>,
-    method_not_allowed: Option<T>,
-    panic_handler: Option<T>,
+    not_found: Option<Handler>,
+    method_not_allowed: Option<Handler>,
+    panic_handler: Option<Handler>,
 }
 
-impl<T> Router<T> {
-    pub fn new() -> Router<T> {
+impl Router {
+    pub fn new() -> Router{
         Router {
             trees: BTreeMap::new(),
             redirect_trailing_slash: true,
@@ -100,37 +104,37 @@ impl<T> Router<T> {
     }
 
     /// get is a shortcut for router.handle("GET", path, handle)
-    pub fn get(&mut self, path: &str, handle: T) {
+    pub fn get<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
         self.handle("GET", path, handle);
     }
 
     /// head is a shortcut for router.handle("HEAD", path, handle)
-    pub fn head(&mut self, path: &str, handle: T) {
+    pub fn head<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
         self.handle("HEAD", path, handle);
     }
 
     /// options is a shortcut for router.handle("OPTIONS", path, handle)
-    pub fn options(&mut self, path: &str, handle: T) {
+    pub fn options<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
         self.handle("OPTIONS", path, handle);
     }
 
     /// post is a shortcut for router.handle("POST", path, handle)
-    pub fn post(&mut self, path: &str, handle: T) {
+    pub fn post<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
         self.handle("POST", path, handle);
     }
 
     /// put is a shortcut for router.handle("PUT", path, handle)
-    pub fn put(&mut self, path: &str, handle: T) {
+    pub fn put<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
         self.handle("PUT", path, handle);
     }
 
     /// patch is a shortcut for router.handle("PATCH", path, handle)
-    pub fn patch(&mut self, path: &str, handle: T) {
+    pub fn patch<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
         self.handle("PATCH", path, handle);
     }
 
     /// delete is a shortcut for router.handle("DELETE", path, handle)
-    pub fn delete(&mut self, path: &str, handle: T) {
+    pub fn delete<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
         self.handle("DELETE", path, handle);
     }
 
@@ -156,19 +160,19 @@ impl<T> Router<T> {
     /// To use the operating system's file system implementation,
     /// use http.Dir:
     ///     router.serve_files("/src/*filepath", http.Dir("/var/www"))
-    // pub fn serve_files(&mut self, path: &str, dir: &str) {
-    //     if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
-    //         panic!("path must end with /*filepath in path '{}'", path);
-    //     }
+    pub fn serve_files(&mut self, path: &str, root: &str) {
+        if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
+            panic!("path must end with /*filepath in path '{}'", path);
+        }
+        let server_path = Path::new(root).join(path).to_str().unwrap();
+        let get_files = move |req: Request<Body>, _| -> BoxFut{
+            // let f = [dir, "/", ps.by_name("filepath")].concat();
+            // ps.unwrap_or
+            simple_file_send(server_path)
+        };
 
-    //     let get_files = |req: Request<Body>, _: Response<Body>, ps: Option<Params>| -> BoxFut{
-    //         // let f = [dir, "/", ps.by_name("filepath")].concat();
-    //         // ps.unwrap_or
-    //         simple_file_send("f")
-    //     };
-
-    //     self.get(path, get_files);
-    // }
+        self.get(path, get_files);
+    }
 
     /// Use `service_fn` over it.
     // pub fn serve_http(&mut self, req: Request<Body>) -> BoxFut {
@@ -187,7 +191,7 @@ impl<T> Router<T> {
     /// This function is intended for bulk loading and to allow the usage of less
     /// frequently used, non-standardized or custom methods (e.g. for internal
     /// communication with a proxy).
-    pub fn handle(&mut self, method: &str, path: &str, handle: T) {
+    pub fn handle<F: Handle + Send + Sync + 'static>(&mut self, method: &str, path: &str, handle: F) {
         if !path.starts_with("/") {
             panic!("path must begin with '/' in path '{}'", path);
         }
@@ -195,7 +199,7 @@ impl<T> Router<T> {
         self.trees
             .entry(method.to_string())
             .or_insert(Node::new())
-            .add_route(path, handle);
+            .add_route(path, Arc::new(handle));
     }
 
     /// Lookup allows the manual lookup of a method + path combo.
@@ -203,7 +207,7 @@ impl<T> Router<T> {
     /// If the path was found, it returns the handle function and the path parameter
     /// values. Otherwise the third return value indicates whether a redirection to
     /// the same path with an extra / without the trailing slash should be performed.
-    pub fn lookup(&mut self, method: &str, path: &str) -> (Option<&T>, Option<Params>, bool) {
+    pub fn lookup(&mut self, method: &str, path: &str) -> (Option<&Handler>, Option<Params>, bool) {
         self.trees
             .get_mut(method)
             .and_then(|n| Some(n.get_value(path)))
@@ -255,10 +259,8 @@ impl<T> Router<T> {
 }
 
 /// Service makes the router implement the router.handler interface.
-impl<T> Service for Router<T>
-where
-    // T: Fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut,
-    T: Handle
+impl Service for Router
+
 {
     type ReqBody = Body;
     type ResBody = Body;
@@ -357,7 +359,7 @@ where
     }
 }
 
-impl<T> IntoFuture for Router<T> {
+impl IntoFuture for Router{
     type Future = future::FutureResult<Self::Item, Self::Error>;
     type Item = Self;
     type Error = Error;
