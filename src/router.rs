@@ -354,7 +354,7 @@ impl Service for Router
             return not_found.handle(req, None);
         } else {
             // *response.status_mut() = StatusCode::NOT_FOUND;
-            let response = Response::builder().status(404).body(Body::empty()).unwrap();
+            let response = Response::builder().status(404).body("NOT_FOUND".into()).unwrap();
             return Box::new(future::ok(response));
         }
     }
@@ -392,7 +392,7 @@ fn simple_file_send(f: &str) -> BoxFut {
         .or_else(|_| {
             Ok(Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from("NOTFOUND"))
+                .body(Body::from("NOT_FOUND"))
                 .unwrap())
         }))
 }
