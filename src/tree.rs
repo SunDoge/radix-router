@@ -678,8 +678,11 @@ impl<T> Node<T> {
                                     // println!("cipah = {}", str::from_utf8(&ci_path).unwrap());
                                     return true;
                                 }
-                                let prev_len = ci_path.len() - self.children[i].path.len();
-                                ci_path.truncate(prev_len);
+                                if ci_path.len() > self.children[i].path.len() {
+                                    let prev_len = ci_path.len() - self.children[i].path.len();
+                                    ci_path.truncate(prev_len);
+                                }
+
                                 break;
                             }
                         }
