@@ -8,14 +8,13 @@ use hyper::rt::{self, Future};
 use hyper::{Body, Request, Response, Server};
 use radix_router::router::{BoxFut, Params, Router};
 
-fn index(_: Request<Body>, _: Option<Params>) -> BoxFut {
+fn index(_: Request<Body>, _: Params) -> BoxFut {
     let res = Response::builder().body("welcome!\n".into()).unwrap();
     Box::new(future::ok(res))
 }
 
-fn hello(_: Request<Body>, ps: Option<Params>) -> BoxFut {
-    let params = ps.unwrap();
-    let name = params.by_name("name").unwrap();
+fn hello(_: Request<Body>, ps: Params) -> BoxFut {
+    let name = ps.by_name("name").unwrap();
     let res = Response::builder()
         .body(format!("hello, {}!\n", name).into())
         .unwrap();

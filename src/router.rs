@@ -22,11 +22,11 @@ use std::path::Path;
 pub type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
 
 pub trait Handle {
-    fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut;
+    fn handle(&self, req: Request<Body>, ps: Params) -> BoxFut;
 }
 
-impl<F> Handle for F where F: Fn(Request<Body>, Option<Params>) -> BoxFut {
-    fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut {
+impl<F> Handle for F where F: Fn(Request<Body>, Params) -> BoxFut {
+    fn handle(&self, req: Request<Body>, ps: Params) -> BoxFut {
         (*self)(req, ps)
     }
 }
@@ -71,6 +71,19 @@ impl Params {
             Some(param) => Some(&param.value),
             None => None,
         }
+    }
+
+    /// Empty `Params`
+    pub fn new() -> Params{
+        Params(Vec::new())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn push(&mut self, p: Param) {
+        self.0.push(p);
     }
 }
 
@@ -164,11 +177,10 @@ impl Router {
             panic!("path must end with /*filepath in path '{}'", path);
         }
         let root_path = Path::new(root);
-        let get_files = move |_, ps: Option<Params>| -> BoxFut{
+        let get_files = move |_, ps: Params| -> BoxFut{
             // let f = [dir, "/", ps.by_name("filepath")].concat();
             // ps.unwrap_or
-            let params = ps.unwrap();
-            let filepath = params.by_name("filepath").unwrap();
+            let filepath = ps.by_name("filepath").unwrap();
             simple_file_send(root_path.join(&filepath[1..]).to_str().unwrap())
         };
 
@@ -208,11 +220,11 @@ impl Router {
     /// If the path was found, it returns the handle function and the path parameter
     /// values. Otherwise the third return value indicates whether a redirection to
     /// the same path with an extra / without the trailing slash should be performed.
-    pub fn lookup(&mut self, method: &str, path: &str) -> (Option<&Handler>, Option<Params>, bool) {
+    pub fn lookup(&mut self, method: &str, path: &str) -> (Option<&Handler>, Params, bool) {
         self.trees
             .get_mut(method)
             .and_then(|n| Some(n.get_value(path)))
-            .unwrap_or((None, None, false))
+            .unwrap_or((None, Params::new(), false))
     }
 
     pub fn allowed(&self, path: &str, req_method: &str)-> String {
@@ -338,7 +350,7 @@ impl Service for Router
                     let mut response = Response::builder().header("Allow", allow.as_str()).body(Body::empty()).unwrap();
 
                     if let Some(ref method_not_allowed) = self.method_not_allowed {
-                        return method_not_allowed.handle(req, None);
+                        return method_not_allowed.handle(req, Params::new());
                     } else {
                         *response.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
                         *response.body_mut() = Body::from("METHOD_NOT_ALLOWED");
@@ -351,7 +363,7 @@ impl Service for Router
         }
 
         if let Some(ref not_found) = self.not_found {
-            return not_found.handle(req, None);
+            return not_found.handle(req, Params::new());
         } else {
             // *response.status_mut() = StatusCode::NOT_FOUND;
             let response = Response::builder().status(404).body("NOT_FOUND".into()).unwrap();

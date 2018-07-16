@@ -11,7 +11,7 @@ use radix_router::router::{BoxFut, Router};
 
 // static PHRASE: &'static [u8] = b"Hello World!";
 
-fn get_echo(_: Request<Body>, _: Option<Params>) -> BoxFut {
+fn get_echo(_: Request<Body>, _: Params) -> BoxFut {
     // Box::new(future::ok(Response::new(Body::from("Try POSTing data to /echo"))))
     // *response.body_mut() = Body::from("Try POSTing data to /echo");
     let response = Response::builder()
@@ -20,14 +20,14 @@ fn get_echo(_: Request<Body>, _: Option<Params>) -> BoxFut {
     Box::new(future::ok(response))
 }
 
-fn post_echo(req: Request<Body>, _: Option<Params>) -> BoxFut {
+fn post_echo(req: Request<Body>, _: Params) -> BoxFut {
     // Box::new(future::ok(Response::new(req.into_body())))
     // *response.body_mut() = req.into_body();
     let response = Response::builder().body(req.into_body()).unwrap();
     Box::new(future::ok(response))
 }
 
-fn post_echo_uppercase(req: Request<Body>, _: Option<Params>) -> BoxFut {
+fn post_echo_uppercase(req: Request<Body>, _: Params) -> BoxFut {
     let mapping = req.into_body().map(|chunk| {
         chunk
             .iter()
@@ -42,7 +42,7 @@ fn post_echo_uppercase(req: Request<Body>, _: Option<Params>) -> BoxFut {
     Box::new(future::ok(response))
 }
 
-fn post_echo_reversed(req: Request<Body>, _: Option<Params>) -> BoxFut {
+fn post_echo_reversed(req: Request<Body>, _: Params) -> BoxFut {
     let reversed = req.into_body().concat2().map(move |chunk| {
         let body = chunk.iter().rev().cloned().collect::<Vec<u8>>();
         // *response.body_mut() = Body::from(body);
