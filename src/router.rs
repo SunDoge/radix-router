@@ -38,7 +38,7 @@ impl<F> Handle for F where F: Fn(Request<Body>, Params) -> BoxFut {
 // pub type Handler = fn(Request<Body>, Option<Params>) -> BoxFut;
 
 /// Handle is a function that can be registered to a route to handle HTTP
-/// requests. Like http.HandlerFunc, but has a third parameter for the values of
+/// requests. It has a third parameter for the values of
 /// wildcards (variables).
 pub type Handler = Box<Handle + Send>;
 
@@ -133,13 +133,12 @@ pub struct Router<T> {
 	// Custom OPTIONS handlers take priority over automatic replies.
     handle_options: bool,
 
-    // Configurable http.Handler which is called when no matching route is
-	// found. If it is not set, http.NotFound is used.
+    // Configurable handler which is called when no matching route is
+	// found. 
     not_found: Option<T>,
 
-    // Configurable http.Handler which is called when a request
+    // Configurable handler which is called when a request
 	// cannot be routed and HandleMethodNotAllowed is true.
-	// If it is not set, http.Error with http.StatusMethodNotAllowed is used.
 	// The "Allow" header with allowed request methods is set before the handler
 	// is called.
     method_not_allowed: Option<T>,
@@ -417,6 +416,9 @@ impl Router<Handler> {
     /// "/etc/passwd" would be served.
     /// 
     /// ```rust
+    /// extern crate radix_router;
+    /// use radix_router::router::{Router, Handler};
+    /// let mut router: Router<Handler> = Router::new();
     /// router.serve_files("/examples/*filepath", "examples");
     /// ```
     pub fn serve_files(&mut self, path: &str, root: &'static str) {

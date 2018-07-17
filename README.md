@@ -116,6 +116,6 @@ $ cargo run --example echo
 $ curl http://127.0.0.1:3000/echo
 Try POSTing data to /echo
 
-$ curl -d "param1=SunDoge&param2=TripleZ" -X POST http://127.0.0.1:3000/echo
-param1=SunDoge&param2=TripleZ
+$ curl -d "param1=1&param2=2" -X POST http://127.0.0.1:3000/echo
+param1=1&param2=2
 ```
