@@ -838,6 +838,7 @@ fn shift_n_rune_bytes(rb: [u8; 4], n: usize) -> [u8; 4] {
     }
 }
 
+/// This function is ported from go.
 fn rune_start(b: u8) -> bool {
     b & 0xC0 != 0x80
 }
