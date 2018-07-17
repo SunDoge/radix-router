@@ -1,6 +1,6 @@
 [package]
 name = "radix-router"
-version = "0.1.0"
+version = "0.1.1"
 description = "Rust port of httprouter."
 readme = "README.md"
 documentation = "https://docs.rs/radix-router"
