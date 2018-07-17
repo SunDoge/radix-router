@@ -1,17 +1,10 @@
-// extern crate http;
-extern crate hyper;
+//! # radix-router
+
 extern crate futures;
+extern crate hyper;
 extern crate tokio_fs;
 extern crate tokio_io;
 
+pub mod path;
 pub mod router;
 pub mod tree;
-pub mod path;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}

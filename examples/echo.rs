@@ -9,8 +9,6 @@ use hyper::{Body, Request, Response, Server};
 use radix_router::router::Params;
 use radix_router::router::{BoxFut, Router, Handler};
 
-// static PHRASE: &'static [u8] = b"Hello World!";
-
 fn get_echo(_: Request<Body>, _: Params) -> BoxFut {
     // Box::new(future::ok(Response::new(Body::from("Try POSTing data to /echo"))))
     // *response.body_mut() = Body::from("Try POSTing data to /echo");

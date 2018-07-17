@@ -12,12 +12,20 @@
 ///
 /// If the result of this process is an empty string, "/" is returned
 pub fn clean_path(p: &str) -> String {
+    // Turn empty string into "/"
     if p == "" {
         return "/".to_string();
     }
 
     let n = p.len();
     let mut buf: Vec<u8> = Vec::new();
+
+    // Invariants:
+	//      reading from path; r is index of next byte to process.
+	//      writing to buf; w is index of next byte to write.
+
+	// path must start with '/'
+
     let mut r = 1;
     let mut w = 1;
 
@@ -29,19 +37,27 @@ pub fn clean_path(p: &str) -> String {
 
     let mut trailing = n > 1 && p.ends_with("/");
     let p = p.as_bytes();
+
+    // A bit more clunky without a 'lazybuf' like the path package, but the loop
+	// gets completely inlined (bufApp). So in contrast to the path package this
+	// loop has no expensive function calls (except 1x make)
+
     while r < n {
         match p[r] {
-            b'/' => r += 1,
+            b'/' => r += 1,  // empty path element, trailing slash is added after the end
             b'.' => {
                 if r + 1 == n {
                     trailing = true;
                     r += 1;
                 } else if p[r + 1] == b'/' {
-                    r += 1;
-                } else if p[r + 1] == b'.' && (r + 2 == n || p[r + 2] == b'/') {
+                    // . element
                     r += 2;
+                } else if p[r + 1] == b'.' && (r + 2 == n || p[r + 2] == b'/') {
+                    // .. element: remove to last /
+                    r += 3;
 
                     if w > 1 {
+                        // can backtrack
                         w -= 1;
 
                         if buf.is_empty() {
@@ -57,11 +73,14 @@ pub fn clean_path(p: &str) -> String {
                 }
             }
             _ => {
+                // real path element.
+			    // add slash if needed
                 if w > 1 {
                     buf_app(&mut buf, p, w, b'/');
                     w += 1;
                 }
 
+                // copy element
                 while r < n && p[r] != b'/' {
                     buf_app(&mut buf, p, w, p[r]);
                     w += 1;
@@ -70,6 +89,8 @@ pub fn clean_path(p: &str) -> String {
             }
         }
     }
+
+    // re-append trailing slash
     if trailing && w > 1 {
         buf_app(&mut buf, p, w, b'/');
         w += 1;
@@ -81,6 +102,7 @@ pub fn clean_path(p: &str) -> String {
     String::from_utf8(buf[..w].to_vec()).unwrap()
 }
 
+/// internal helper to lazily create a buffer if necessary
 fn buf_app(buf: &mut Vec<u8>, s: &[u8], w: usize, c: u8) {
     if buf.is_empty() {
         if s[w] == c {

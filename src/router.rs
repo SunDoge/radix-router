@@ -1,4 +1,3 @@
-// use http::{Request, Response};
 use futures::{future, IntoFuture};
 use hyper::error::Error;
 use hyper::rt::Future;
@@ -14,10 +13,7 @@ use std::ops::Index;
 // use std::sync::Arc;
 use std::path::Path;
 
-// TODO think more about what a handler looks like
-/// Handle is a function that can be registered to a route to handle HTTP
-/// requests. Like http.HandlerFunc, but has a third parameter for the values of
-/// wildcards (variables).
+// TODO: think more about what a handler looks like
 // pub type Handle = fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut;
 // pub type ResponseFuture = Box<Future<Item=Response<Body>, Error=Error> + Send>;
 pub type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
@@ -40,6 +36,10 @@ impl<F> Handle for F where F: Fn(Request<Body>, Params) -> BoxFut {
 // }
 
 // pub type Handler = fn(Request<Body>, Option<Params>) -> BoxFut;
+
+/// Handle is a function that can be registered to a route to handle HTTP
+/// requests. Like http.HandlerFunc, but has a third parameter for the values of
+/// wildcards (variables).
 pub type Handler = Box<Handle + Send>;
 
 /// Param is a single URL parameter, consisting of a key and a value.
@@ -96,21 +96,65 @@ impl Index<usize> for Params {
     }
 }
 
-/// Router is a http.Handler which can be used to dispatch requests to different
+/// Router is container which can be used to dispatch requests to different
 /// handler functions via configurable routes
 // #[derive(Clone)]
+#[allow(dead_code)]
 pub struct Router<T> {
     pub trees: BTreeMap<String, Node<T>>,
+
+    // Enables automatic redirection if the current route can't be matched but a
+	// handler for the path with (without) the trailing slash exists.
+	// For example if /foo/ is requested but a route only exists for /foo, the
+	// client is redirected to /foo with http status code 301 for GET requests
+	// and 307 for all other request methods.
     redirect_trailing_slash: bool,
+
+    // If enabled, the router tries to fix the current request path, if no
+	// handle is registered for it.
+	// First superfluous path elements like ../ or // are removed.
+	// Afterwards the router does a case-insensitive lookup of the cleaned path.
+	// If a handle can be found for this route, the router makes a redirection
+	// to the corrected path with status code 301 for GET requests and 307 for
+	// all other request methods.
+	// For example /FOO and /..//Foo could be redirected to /foo.
+	// RedirectTrailingSlash is independent of this option.
     redirect_fixed_path: bool,
+
+    // If enabled, the router checks if another method is allowed for the
+	// current route, if the current request can not be routed.
+	// If this is the case, the request is answered with 'Method Not Allowed'
+	// and HTTP status code 405.
+	// If no other Method is allowed, the request is delegated to the NotFound
+	// handler.
     handle_method_not_allowed: bool,
+
+    // If enabled, the router automatically replies to OPTIONS requests.
+	// Custom OPTIONS handlers take priority over automatic replies.
     handle_options: bool,
+
+    // Configurable http.Handler which is called when no matching route is
+	// found. If it is not set, http.NotFound is used.
     not_found: Option<T>,
+
+    // Configurable http.Handler which is called when a request
+	// cannot be routed and HandleMethodNotAllowed is true.
+	// If it is not set, http.Error with http.StatusMethodNotAllowed is used.
+	// The "Allow" header with allowed request methods is set before the handler
+	// is called.
     method_not_allowed: Option<T>,
+
+    // Function to handle panics recovered from http handlers.
+	// It should be used to generate a error page and return the http error code
+	// 500 (Internal Server Error).
+	// The handler can be used to keep your server from crashing because of
+	// unrecovered panics.
     panic_handler: Option<T>,
 }
 
 impl<T> Router<T> {
+    /// New returns a new initialized Router.
+    /// Path auto-correction, including trailing slashes, is enabled by default.
     pub fn new() -> Router<T>{
         Router {
             trees: BTreeMap::new(),
@@ -159,7 +203,7 @@ impl<T> Router<T> {
         self.handle("DELETE", path, handle);
     }
 
-    /// Perhaps something like
+    /// Unimplemented. Perhaps something like
     ///
     /// # Example
     ///
@@ -169,41 +213,9 @@ impl<T> Router<T> {
     ///     router.post("/something", somewhere);
     /// })
     /// ```
-    pub fn group() {}
-
-    /// ServeFiles serves files from the given file system root.
-    /// The path must end with "/*filepath", files are then served from the local
-    /// path /defined/root/dir/*filepath.
-    /// For example if root is "/etc" and *filepath is "passwd", the local file
-    /// "/etc/passwd" would be served.
-    /// Internally a http.FileServer is used, therefore http.NotFound is used instead
-    /// of the Router's NotFound handler.
-    /// To use the operating system's file system implementation,
-    /// use http.Dir:
-    ///     router.serve_files("/src/*filepath", http.Dir("/var/www"))
-    // pub fn serve_files(&mut self, path: &str, root: &'static str) {
-    //     if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
-    //         panic!("path must end with /*filepath in path '{}'", path);
-    //     }
-    //     let root_path = Path::new(root);
-    //     let get_files = move |_, ps: Params| -> BoxFut{
-    //         // let f = [dir, "/", ps.by_name("filepath")].concat();
-    //         // ps.unwrap_or
-    //         let filepath = ps.by_name("filepath").unwrap();
-    //         simple_file_send(root_path.join(&filepath[1..]).to_str().unwrap())
-    //     };
-
-    //     self.get(path, get_files);
-    // }
-
-    /// Use `service_fn` over it.
-    // pub fn serve_http(&mut self, req: Request<Body>) -> BoxFut {
-        // if self.panic_handler.is_some() {
-        //     // recover
-        // }
-        // unimplemented!()
-        
-    // }
+    pub fn group() {
+        unimplemented!()
+    }
 
     /// Handle registers a new request handle with the given path and method.
     ///
@@ -225,7 +237,9 @@ impl<T> Router<T> {
     }
 
     /// Lookup allows the manual lookup of a method + path combo.
+    /// 
     /// This is e.g. useful to build a framework around this router.
+    /// 
     /// If the path was found, it returns the handle function and the path parameter
     /// values. Otherwise the third return value indicates whether a redirection to
     /// the same path with an extra / without the trailing slash should be performed.
@@ -280,7 +294,7 @@ impl<T> Router<T> {
     }
 }
 
-/// Service makes the router implement the router.handler interface.
+/// Service makes the router capable for Hyper.
 impl Service for Router<Handler>
 
 {
@@ -289,6 +303,7 @@ impl Service for Router<Handler>
     type Error = Error;
     type Future = BoxFut;
 
+    /// call makes the router implement the `Service` trait.
     fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
         // let (handle, p, _) = self.lookup(req.method().as_str(), req.uri().path());
         // match handle {
@@ -371,6 +386,7 @@ impl Service for Router<Handler>
             
         }
 
+        // Handle 404
         if let Some(ref not_found) = self.not_found {
             return not_found.handle(req, Params::new());
         } else {
@@ -392,14 +408,23 @@ impl IntoFuture for Router<Handler>{
 }
 
 impl Router<Handler> {
-     pub fn serve_files(&mut self, path: &str, root: &'static str) {
+    /// ServeFiles serves files from the given file system root.
+    /// 
+    /// The path must end with "/*filepath", files are then served from the local
+    /// path /defined/root/dir/*filepath.
+    /// 
+    /// For example if root is "/etc" and *filepath is "passwd", the local file
+    /// "/etc/passwd" would be served.
+    /// 
+    /// ```rust
+    /// router.serve_files("/examples/*filepath", "examples");
+    /// ```
+    pub fn serve_files(&mut self, path: &str, root: &'static str) {
         if path.as_bytes().len() < 10 || &path[path.len() - 10..] != "/*filepath" {
             panic!("path must end with /*filepath in path '{}'", path);
         }
         let root_path = Path::new(root);
         let get_files = move |_, ps: Params| -> BoxFut{
-            // let f = [dir, "/", ps.by_name("filepath")].concat();
-            // ps.unwrap_or
             let filepath = ps.by_name("filepath").unwrap();
             simple_file_send(root_path.join(&filepath[1..]).to_str().unwrap())
         };
@@ -459,8 +484,8 @@ mod tests {
 
         let params = Params(vec![
             Param {
-                key: "fuck".to_owned(),
-                value: "you".to_owned(),
+                key: "hello".to_owned(),
+                value: "world".to_owned(),
             },
             Param {
                 key: "lalala".to_string(),
@@ -468,7 +493,7 @@ mod tests {
             },
         ]);
 
-        assert_eq!(Some("you"), params.by_name("fuck"));
+        assert_eq!(Some("world"), params.by_name("hello"));
         assert_eq!(Some("papapa"), params.by_name("lalala"));
     }
 

@@ -574,6 +574,10 @@ impl<T> Node<T> {
         }
     }
 
+    /// Makes a case-insensitive lookup of the given path and tries to find a handler.
+    /// It can optionally also fix trailing slashes.
+    /// It returns the case-corrected path and a bool indicating whether the lookup
+    /// was successful.
     pub fn find_case_insensitive_path(
         &self,
         path: &str,
@@ -590,6 +594,7 @@ impl<T> Node<T> {
         (String::from_utf8(ci_path).unwrap(), found)
     }
 
+    /// recursive case-insensitive lookup function used by n.findCaseInsensitivePath
     fn find_case_insensitive_path_rec(
         &self,
         mut path: &[u8],
@@ -615,12 +620,18 @@ impl<T> Node<T> {
                 let lo_old = lo_path.clone();
                 lo_path = &lo_path[lo_n_path.len()..];
 
+                // If this node does not have a wildcard (param or catchAll) child,
+                // we can just look up the next child node and continue to walk down
+                // the tree
                 if !self.wild_child {
+                    // skip rune bytes already processed
                     rb = shift_n_rune_bytes(rb, lo_n_path.len());
 
                     if rb[0] != 0 {
+                        // old rune not finished
                         for i in 0..self.indices.len() {
                             if self.indices[i] == rb[0] {
+                                // continue with child node
                                 return self.children[i].find_case_insensitive_path_rec(
                                     path,
                                     lo_path,
@@ -631,13 +642,18 @@ impl<T> Node<T> {
                             }
                         }
                     } else {
+                        // process a new rune
                         let mut rv = 0 as char;
 
+                        // find rune start
+                        // runes are up to 4 byte long,
+                        // -4 would definitely be another rune
                         let mut off = 0;
                         // println!("loold {:?}", lo_old);
                         for j in 0..min(lo_n_path.len(), 3) {
                             let i = lo_n_path.len() - j;
                             if rune_start(lo_old[i]) {
+                                // read rune from cached lowercase path
                                 rv = str::from_utf8(&lo_old[i..])
                                     .unwrap()
                                     .chars()
@@ -648,12 +664,18 @@ impl<T> Node<T> {
                             }
                         }
                         // println!("rv = {}, off = {}", rv, off);
+                        // calculate lowercase bytes of current rune
                         rv.encode_utf8(&mut rb);
 
+                        // skipp already processed bytes
                         rb = shift_n_rune_bytes(rb, off);
                         // println!("rb = {:?}", rb);
                         for i in 0..self.indices.len() {
+                            // lowercase matches
                             if self.indices[i] == rb[0] {
+                                // must use a recursive approach since both the
+                                // uppercase byte and the lowercase byte might exist
+                                // as an index
                                 let found = self.children[i].find_case_insensitive_path_rec(
                                     path,
                                     lo_path,
@@ -675,6 +697,7 @@ impl<T> Node<T> {
                             }
                         }
 
+                        // same for uppercase rune, if it differs
                         let up = rv.to_ascii_uppercase();
                         if up != rv {
                             up.encode_utf8(&mut rb);
@@ -694,6 +717,8 @@ impl<T> Node<T> {
                         }
                     }
 
+                    // Nothing found. We can recommend to redirect to the same URL
+				    // without a trailing slash if a leaf exists for that path
                     return fix_trailing_slash && path == [b'/'] && self.handle.is_some();
                 }
 
@@ -745,6 +770,7 @@ impl<T> Node<T> {
         false
     }
 
+    /// recursive case-insensitive lookup function used by n.findCaseInsensitivePath
     fn find_case_insensitive_path_rec_match(
         &self,
         mut path: &[u8],
