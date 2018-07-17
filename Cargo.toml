@@ -1,6 +1,9 @@
 [package]
 name = "radix-router"
 version = "0.1.0"
+description = "Rust port of httprouter."
+repository = "https://github.com/SunDoge/radix-router"
+license = "BSD-3-Clause"
 authors = ["SunDoge <384813529@qq.com>"]
 
 [dependencies]
