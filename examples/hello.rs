@@ -6,7 +6,7 @@ extern crate radix_router;
 use futures::future;
 use hyper::rt::{self, Future};
 use hyper::{Body, Request, Response, Server};
-use radix_router::router::{BoxFut, Params, Router};
+use radix_router::router::{BoxFut, Params, Router, Handler};
 
 fn index(_: Request<Body>, _: Params) -> BoxFut {
     let res = Response::builder().body("welcome!\n".into()).unwrap();
@@ -14,7 +14,8 @@ fn index(_: Request<Body>, _: Params) -> BoxFut {
 }
 
 fn hello(_: Request<Body>, ps: Params) -> BoxFut {
-    let name = ps.by_name("name").unwrap();
+    // let name = ps.by_name("name").unwrap();
+    let name = &ps[0];
     let res = Response::builder()
         .body(format!("hello, {}!\n", name).into())
         .unwrap();
@@ -30,9 +31,9 @@ fn main() {
     // to handle requests for that specific connection.
     let new_service = move || {
         // This is the `Service` that will handle the connection.
-        let mut router = Router::new();
-        router.get("/", index);
-        router.get("/hello/:name", hello);
+        let mut router: Router<Handler> = Router::new();
+        router.get("/", Box::new(index));
+        router.get("/hello/:name", Box::new(hello));
         router
     };
 

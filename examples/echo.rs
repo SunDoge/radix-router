@@ -7,7 +7,7 @@ use futures::future;
 use hyper::rt::{self, Future, Stream};
 use hyper::{Body, Request, Response, Server};
 use radix_router::router::Params;
-use radix_router::router::{BoxFut, Router};
+use radix_router::router::{BoxFut, Router, Handler};
 
 // static PHRASE: &'static [u8] = b"Hello World!";
 
@@ -71,16 +71,16 @@ fn main() {
         // router.get("/some", |req, ps| {
         //     Box::new(future::ok(Response::new(Body::empty())))
         // });
-        let mut router = Router::new();
-        router.get("/", get_echo);
-        router.post("/echo", post_echo);
-        router.post("/echo/uppercase", post_echo_uppercase);
-        router.post("/echo/reversed", post_echo_reversed);
-        router.get("/some", move |_, _| -> BoxFut {
+        let mut router: Router<Handler> = Router::new();
+        router.get("/", Box::new(get_echo));
+        router.post("/echo", Box::new(post_echo));
+        router.post("/echo/uppercase", Box::new(post_echo_uppercase));
+        router.post("/echo/reversed", Box::new(post_echo_reversed));
+        router.get("/some", Box::new(move |_, _| -> BoxFut {
             Box::new(future::ok(
                 Response::builder().body(some_str.into()).unwrap(),
             ))
-        });
+        }));
         router.serve_files("/examples/*filepath", "examples");
         router
     };
