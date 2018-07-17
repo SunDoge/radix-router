@@ -57,17 +57,7 @@ fn main() {
 
     let addr = ([127, 0, 0, 1], 3000).into();
     let some_str = "Some";
-    let mut router = Router::new();
-    router.get("/", get_echo);
-    router.post("/echo", post_echo);
-    router.post("/echo/uppercase", post_echo_uppercase);
-    router.post("/echo/reversed", post_echo_reversed);
-    router.get("/some", move |_, _| -> BoxFut {
-        Box::new(future::ok(
-            Response::builder().body(some_str.into()).unwrap(),
-        ))
-    });
-    router.serve_files("/examples/*filepath", "examples");
+
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
     let new_service = move || {
@@ -81,7 +71,18 @@ fn main() {
         // router.get("/some", |req, ps| {
         //     Box::new(future::ok(Response::new(Body::empty())))
         // });
-        router.clone()
+        let mut router = Router::new();
+        router.get("/", get_echo);
+        router.post("/echo", post_echo);
+        router.post("/echo/uppercase", post_echo_uppercase);
+        router.post("/echo/reversed", post_echo_reversed);
+        router.get("/some", move |_, _| -> BoxFut {
+            Box::new(future::ok(
+                Response::builder().body(some_str.into()).unwrap(),
+            ))
+        });
+        router.serve_files("/examples/*filepath", "examples");
+        router
     };
 
     let server = Server::bind(&addr)

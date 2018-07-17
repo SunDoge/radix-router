@@ -26,15 +26,14 @@ fn main() {
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
-    let mut router = Router::new();
-    router.get("/", index);
-    router.get("/hello/:name", hello);
-
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
     let new_service = move || {
         // This is the `Service` that will handle the connection.
-        router.clone()
+        let mut router = Router::new();
+        router.get("/", index);
+        router.get("/hello/:name", hello);
+        router
     };
 
     let server = Server::bind(&addr)

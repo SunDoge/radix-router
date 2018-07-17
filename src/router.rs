@@ -10,7 +10,7 @@ use path::clean_path;
 use tokio_fs;
 use tokio_io;
 use hyper;
-use std::sync::Arc;
+// use std::sync::Arc;
 use std::path::Path;
 
 // TODO think more about what a handler looks like
@@ -39,7 +39,7 @@ impl<F> Handle for F where F: Fn(Request<Body>, Params) -> BoxFut {
 // }
 
 // pub type Handler = fn(Request<Body>, Option<Params>) -> BoxFut;
-pub type Handler = Arc<Handle + Send + Sync>;
+pub type Handler = Box<Handle + Send>;
 
 /// Param is a single URL parameter, consisting of a key and a value.
 #[derive(Debug, Clone, PartialEq)]
@@ -89,7 +89,7 @@ impl Params {
 
 /// Router is a http.Handler which can be used to dispatch requests to different
 /// handler functions via configurable routes
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Router {
     pub trees: BTreeMap<String, Node<Handler>>,
     redirect_trailing_slash: bool,
@@ -116,37 +116,37 @@ impl Router {
     }
 
     /// get is a shortcut for router.handle("GET", path, handle)
-    pub fn get<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
+    pub fn get<F: Handle + Send  + 'static>(&mut self, path: &str, handle: F) {
         self.handle("GET", path, handle);
     }
 
     /// head is a shortcut for router.handle("HEAD", path, handle)
-    pub fn head<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
+    pub fn head<F: Handle + Send  + 'static>(&mut self, path: &str, handle: F) {
         self.handle("HEAD", path, handle);
     }
 
     /// options is a shortcut for router.handle("OPTIONS", path, handle)
-    pub fn options<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
+    pub fn options<F: Handle + Send  + 'static>(&mut self, path: &str, handle: F) {
         self.handle("OPTIONS", path, handle);
     }
 
     /// post is a shortcut for router.handle("POST", path, handle)
-    pub fn post<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
+    pub fn post<F: Handle + Send  + 'static>(&mut self, path: &str, handle: F) {
         self.handle("POST", path, handle);
     }
 
     /// put is a shortcut for router.handle("PUT", path, handle)
-    pub fn put<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
+    pub fn put<F: Handle + Send  + 'static>(&mut self, path: &str, handle: F) {
         self.handle("PUT", path, handle);
     }
 
     /// patch is a shortcut for router.handle("PATCH", path, handle)
-    pub fn patch<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
+    pub fn patch<F: Handle + Send  + 'static>(&mut self, path: &str, handle: F) {
         self.handle("PATCH", path, handle);
     }
 
     /// delete is a shortcut for router.handle("DELETE", path, handle)
-    pub fn delete<F: Handle + Send + Sync + 'static>(&mut self, path: &str, handle: F) {
+    pub fn delete<F: Handle + Send  + 'static>(&mut self, path: &str, handle: F) {
         self.handle("DELETE", path, handle);
     }
 
@@ -204,7 +204,7 @@ impl Router {
     /// This function is intended for bulk loading and to allow the usage of less
     /// frequently used, non-standardized or custom methods (e.g. for internal
     /// communication with a proxy).
-    pub fn handle<F: Handle + Send + Sync + 'static>(&mut self, method: &str, path: &str, handle: F) {
+    pub fn handle<F: Handle + Send  + 'static>(&mut self, method: &str, path: &str, handle: F) {
         if !path.starts_with("/") {
             panic!("path must begin with '/' in path '{}'", path);
         }
@@ -212,7 +212,7 @@ impl Router {
         self.trees
             .entry(method.to_string())
             .or_insert(Node::new())
-            .add_route(path, Arc::new(handle));
+            .add_route(path, Box::new(handle));
     }
 
     /// Lookup allows the manual lookup of a method + path combo.
