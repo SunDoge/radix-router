@@ -1,15 +1,15 @@
 use futures::{future, IntoFuture};
+use hyper;
 use hyper::error::Error;
 use hyper::rt::Future;
-use hyper::service::{ Service};
-use hyper::{Body, Request, Response, Method, StatusCode};
-use std::collections::BTreeMap;
-use tree::Node;
+use hyper::service::Service;
+use hyper::{Body, Method, Request, Response, StatusCode};
 use path::clean_path;
+use std::collections::BTreeMap;
+use std::ops::Index;
 use tokio_fs;
 use tokio_io;
-use hyper;
-use std::ops::Index;
+use tree::Node;
 // use std::sync::Arc;
 use std::path::Path;
 
@@ -22,12 +22,14 @@ pub trait Handle {
     fn handle(&self, req: Request<Body>, ps: Params) -> BoxFut;
 }
 
-impl<F> Handle for F where F: Fn(Request<Body>, Params) -> BoxFut {
+impl<F> Handle for F
+where
+    F: Fn(Request<Body>, Params) -> BoxFut,
+{
     fn handle(&self, req: Request<Body>, ps: Params) -> BoxFut {
         (*self)(req, ps)
     }
 }
-
 
 // impl Handle for Handler {
 //     fn handle(&self, req: Request<Body>, ps: Option<Params>) -> BoxFut {
@@ -75,7 +77,7 @@ impl Params {
     }
 
     /// Empty `Params`
-    pub fn new() -> Params{
+    pub fn new() -> Params {
         Params(Vec::new())
     }
 
@@ -91,7 +93,7 @@ impl Params {
 impl Index<usize> for Params {
     type Output = str;
 
-    fn index(&self, i: usize) -> &Self::Output{
+    fn index(&self, i: usize) -> &Self::Output {
         &(self.0)[i].value
     }
 }
@@ -104,57 +106,57 @@ pub struct Router<T> {
     pub trees: BTreeMap<String, Node<T>>,
 
     // Enables automatic redirection if the current route can't be matched but a
-	// handler for the path with (without) the trailing slash exists.
-	// For example if /foo/ is requested but a route only exists for /foo, the
-	// client is redirected to /foo with http status code 301 for GET requests
-	// and 307 for all other request methods.
+    // handler for the path with (without) the trailing slash exists.
+    // For example if /foo/ is requested but a route only exists for /foo, the
+    // client is redirected to /foo with http status code 301 for GET requests
+    // and 307 for all other request methods.
     pub redirect_trailing_slash: bool,
 
     // If enabled, the router tries to fix the current request path, if no
-	// handle is registered for it.
-	// First superfluous path elements like ../ or // are removed.
-	// Afterwards the router does a case-insensitive lookup of the cleaned path.
-	// If a handle can be found for this route, the router makes a redirection
-	// to the corrected path with status code 301 for GET requests and 307 for
-	// all other request methods.
-	// For example /FOO and /..//Foo could be redirected to /foo.
-	// RedirectTrailingSlash is independent of this option.
+    // handle is registered for it.
+    // First superfluous path elements like ../ or // are removed.
+    // Afterwards the router does a case-insensitive lookup of the cleaned path.
+    // If a handle can be found for this route, the router makes a redirection
+    // to the corrected path with status code 301 for GET requests and 307 for
+    // all other request methods.
+    // For example /FOO and /..//Foo could be redirected to /foo.
+    // RedirectTrailingSlash is independent of this option.
     pub redirect_fixed_path: bool,
 
     // If enabled, the router checks if another method is allowed for the
-	// current route, if the current request can not be routed.
-	// If this is the case, the request is answered with 'Method Not Allowed'
-	// and HTTP status code 405.
-	// If no other Method is allowed, the request is delegated to the NotFound
-	// handler.
+    // current route, if the current request can not be routed.
+    // If this is the case, the request is answered with 'Method Not Allowed'
+    // and HTTP status code 405.
+    // If no other Method is allowed, the request is delegated to the NotFound
+    // handler.
     pub handle_method_not_allowed: bool,
 
     // If enabled, the router automatically replies to OPTIONS requests.
-	// Custom OPTIONS handlers take priority over automatic replies.
+    // Custom OPTIONS handlers take priority over automatic replies.
     pub handle_options: bool,
 
     // Configurable handler which is called when no matching route is
-	// found. 
+    // found.
     pub not_found: Option<T>,
 
     // Configurable handler which is called when a request
-	// cannot be routed and HandleMethodNotAllowed is true.
-	// The "Allow" header with allowed request methods is set before the handler
-	// is called.
+    // cannot be routed and HandleMethodNotAllowed is true.
+    // The "Allow" header with allowed request methods is set before the handler
+    // is called.
     pub method_not_allowed: Option<T>,
 
     // Function to handle panics recovered from http handlers.
-	// It should be used to generate a error page and return the http error code
-	// 500 (Internal Server Error).
-	// The handler can be used to keep your server from crashing because of
-	// unrecovered panics.
+    // It should be used to generate a error page and return the http error code
+    // 500 (Internal Server Error).
+    // The handler can be used to keep your server from crashing because of
+    // unrecovered panics.
     pub panic_handler: Option<T>,
 }
 
 impl<T> Router<T> {
     /// New returns a new initialized Router.
     /// Path auto-correction, including trailing slashes, is enabled by default.
-    pub fn new() -> Router<T>{
+    pub fn new() -> Router<T> {
         Router {
             trees: BTreeMap::new(),
             redirect_trailing_slash: true,
@@ -236,9 +238,9 @@ impl<T> Router<T> {
     }
 
     /// Lookup allows the manual lookup of a method + path combo.
-    /// 
+    ///
     /// This is e.g. useful to build a framework around this router.
-    /// 
+    ///
     /// If the path was found, it returns the handle function and the path parameter
     /// values. Otherwise the third return value indicates whether a redirection to
     /// the same path with an extra / without the trailing slash should be performed.
@@ -249,7 +251,7 @@ impl<T> Router<T> {
             .unwrap_or((None, Params::new(), false))
     }
 
-    pub fn allowed(&self, path: &str, req_method: &str)-> String {
+    pub fn allowed(&self, path: &str, req_method: &str) -> String {
         let mut allow = String::new();
         if path == "*" {
             for method in self.trees.keys() {
@@ -294,9 +296,7 @@ impl<T> Router<T> {
 }
 
 /// Service makes the router capable for Hyper.
-impl Service for Router<Handler>
-
-{
+impl Service for Router<Handler> {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = Error;
@@ -340,17 +340,28 @@ impl Service for Router<Handler>
 
                     // response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&path).unwrap());
                     // *response.status_mut() = code;
-                    let response = Response::builder().header("Location", path.as_str()).status(code).body(Body::empty()).unwrap();
+                    let response = Response::builder()
+                        .header("Location", path.as_str())
+                        .status(code)
+                        .body(Body::empty())
+                        .unwrap();
                     return Box::new(future::ok(response));
                 }
 
                 if self.redirect_fixed_path {
-                    let (fixed_path, found) = root.find_case_insensitive_path(&clean_path(req.uri().path()), self.redirect_trailing_slash);
+                    let (fixed_path, found) = root.find_case_insensitive_path(
+                        &clean_path(req.uri().path()),
+                        self.redirect_trailing_slash,
+                    );
 
                     if found {
                         //  response.headers_mut().insert(header::LOCATION, header::HeaderValue::from_str(&fixed_path).unwrap());
                         // *response.status_mut() = code;
-                        let response = Response::builder().header("Location", fixed_path.as_str()).status(code).body(Body::empty()).unwrap();
+                        let response = Response::builder()
+                            .header("Location", fixed_path.as_str())
+                            .status(code)
+                            .body(Body::empty())
+                            .unwrap();
                         return Box::new(future::ok(response));
                     }
                 }
@@ -361,16 +372,21 @@ impl Service for Router<Handler>
             let allow = self.allowed(req.uri().path(), req.method().as_str());
             if allow.len() > 0 {
                 // *response.headers_mut().get_mut("allow").unwrap() = header::HeaderValue::from_str(&allow).unwrap();
-                let response = Response::builder().header("Allow", allow.as_str()).body(Body::empty()).unwrap();
+                let response = Response::builder()
+                    .header("Allow", allow.as_str())
+                    .body(Body::empty())
+                    .unwrap();
                 return Box::new(future::ok(response));
             }
-
         } else {
             if self.handle_method_not_allowed {
                 let allow = self.allowed(req.uri().path(), req.method().as_str());
 
                 if allow.len() > 0 {
-                    let mut response = Response::builder().header("Allow", allow.as_str()).body(Body::empty()).unwrap();
+                    let mut response = Response::builder()
+                        .header("Allow", allow.as_str())
+                        .body(Body::empty())
+                        .unwrap();
 
                     if let Some(ref method_not_allowed) = self.method_not_allowed {
                         return method_not_allowed.handle(req, Params::new());
@@ -382,7 +398,6 @@ impl Service for Router<Handler>
                     return Box::new(future::ok(response));
                 }
             }
-            
         }
 
         // Handle 404
@@ -390,13 +405,16 @@ impl Service for Router<Handler>
             return not_found.handle(req, Params::new());
         } else {
             // *response.status_mut() = StatusCode::NOT_FOUND;
-            let response = Response::builder().status(404).body("NOT_FOUND".into()).unwrap();
+            let response = Response::builder()
+                .status(404)
+                .body("NOT_FOUND".into())
+                .unwrap();
             return Box::new(future::ok(response));
         }
     }
 }
 
-impl IntoFuture for Router<Handler>{
+impl IntoFuture for Router<Handler> {
     type Future = future::FutureResult<Self::Item, Self::Error>;
     type Item = Self;
     type Error = Error;
@@ -408,13 +426,13 @@ impl IntoFuture for Router<Handler>{
 
 impl Router<Handler> {
     /// ServeFiles serves files from the given file system root.
-    /// 
+    ///
     /// The path must end with "/*filepath", files are then served from the local
     /// path /defined/root/dir/*filepath.
-    /// 
+    ///
     /// For example if root is "/etc" and *filepath is "passwd", the local file
     /// "/etc/passwd" would be served.
-    /// 
+    ///
     /// ```rust
     /// extern crate radix_router;
     /// use radix_router::router::{Router, Handler};
@@ -426,7 +444,7 @@ impl Router<Handler> {
             panic!("path must end with /*filepath in path '{}'", path);
         }
         let root_path = Path::new(root);
-        let get_files = move |_, ps: Params| -> BoxFut{
+        let get_files = move |_, ps: Params| -> BoxFut {
             let filepath = ps.by_name("filepath").unwrap();
             simple_file_send(root_path.join(&filepath[1..]).to_str().unwrap())
         };
@@ -440,26 +458,26 @@ fn simple_file_send(f: &str) -> BoxFut {
     // Uses tokio_fs to open file asynchronously, then tokio_io to read into
     // memory asynchronously.
     let filename = f.to_string(); // we need to copy for lifetime issues
-    Box::new(tokio_fs::file::File::open(filename)
-        .and_then(|file| {
-            let buf: Vec<u8> = Vec::new();
-            tokio_io::io::read_to_end(file, buf)
-                .and_then(|item| {
-                    Ok(Response::new(item.1.into()))
-                })
-                .or_else(|_| {
-                    Ok(Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::empty())
-                        .unwrap())
-                })
-        })
-        .or_else(|_| {
-            Ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from("NOT_FOUND"))
-                .unwrap())
-        }))
+    Box::new(
+        tokio_fs::file::File::open(filename)
+            .and_then(|file| {
+                let buf: Vec<u8> = Vec::new();
+                tokio_io::io::read_to_end(file, buf)
+                    .and_then(|item| Ok(Response::new(item.1.into())))
+                    .or_else(|_| {
+                        Ok(Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::empty())
+                            .unwrap())
+                    })
+            })
+            .or_else(|_| {
+                Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from("NOT_FOUND"))
+                    .unwrap())
+            }),
+    )
 }
 
 // impl<T> NewService for Router<T>
@@ -503,9 +521,9 @@ mod tests {
     #[should_panic(expected = "path must begin with '/' in path 'something'")]
     fn handle_ivalid_path() {
         // use http::Response;
-        use hyper::{Body, Request, Response};
-        use router::{Router, BoxFut, Params};
         use futures::future;
+        use hyper::{Body, Request, Response};
+        use router::{BoxFut, Params, Router};
 
         let path = "something";
         let mut router = Router::new();
