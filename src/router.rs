@@ -108,7 +108,7 @@ pub struct Router<T> {
 	// For example if /foo/ is requested but a route only exists for /foo, the
 	// client is redirected to /foo with http status code 301 for GET requests
 	// and 307 for all other request methods.
-    redirect_trailing_slash: bool,
+    pub redirect_trailing_slash: bool,
 
     // If enabled, the router tries to fix the current request path, if no
 	// handle is registered for it.
@@ -119,7 +119,7 @@ pub struct Router<T> {
 	// all other request methods.
 	// For example /FOO and /..//Foo could be redirected to /foo.
 	// RedirectTrailingSlash is independent of this option.
-    redirect_fixed_path: bool,
+    pub redirect_fixed_path: bool,
 
     // If enabled, the router checks if another method is allowed for the
 	// current route, if the current request can not be routed.
@@ -127,28 +127,28 @@ pub struct Router<T> {
 	// and HTTP status code 405.
 	// If no other Method is allowed, the request is delegated to the NotFound
 	// handler.
-    handle_method_not_allowed: bool,
+    pub handle_method_not_allowed: bool,
 
     // If enabled, the router automatically replies to OPTIONS requests.
 	// Custom OPTIONS handlers take priority over automatic replies.
-    handle_options: bool,
+    pub handle_options: bool,
 
     // Configurable handler which is called when no matching route is
 	// found. 
-    not_found: Option<T>,
+    pub not_found: Option<T>,
 
     // Configurable handler which is called when a request
 	// cannot be routed and HandleMethodNotAllowed is true.
 	// The "Allow" header with allowed request methods is set before the handler
 	// is called.
-    method_not_allowed: Option<T>,
+    pub method_not_allowed: Option<T>,
 
     // Function to handle panics recovered from http handlers.
 	// It should be used to generate a error page and return the http error code
 	// 500 (Internal Server Error).
 	// The handler can be used to keep your server from crashing because of
 	// unrecovered panics.
-    panic_handler: Option<T>,
+    pub panic_handler: Option<T>,
 }
 
 impl<T> Router<T> {
