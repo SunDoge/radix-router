@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Travis CI.
 - Publish.
 
-[Unreleased]: https://github.com/olivierlacan/keep-a-changelog/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/olivierlacan/keep-a-changelog/compare/v0.3.0...v1.0.0
+[Unreleased]: https://github.com/SunDoge/radix-router/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/SunDoge/radix-router/compare/v0.1.0...v0.1.1
 
 
