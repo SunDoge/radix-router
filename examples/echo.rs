@@ -5,9 +5,10 @@ extern crate radix_router;
 
 use futures::future;
 use hyper::rt::{self, Future, Stream};
+use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server};
-use radix_router::router::Params;
-use radix_router::router::{BoxFut, Router, Handler};
+use radix_router::router::{BoxFut, Handler, Params, Router};
+use std::sync::Arc;
 
 fn get_echo(_: Request<Body>, _: Params) -> BoxFut {
     // Box::new(future::ok(Response::new(Body::from("Try POSTing data to /echo"))))
@@ -58,6 +59,22 @@ fn main() {
 
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
+    let mut router: Router<Handler> = Router::new();
+    router.get("/", Box::new(get_echo));
+    router.post("/echo", Box::new(post_echo));
+    router.post("/echo/uppercase", Box::new(post_echo_uppercase));
+    router.post("/echo/reversed", Box::new(post_echo_reversed));
+    router.get(
+        "/some",
+        Box::new(move |_, _| -> BoxFut {
+            Box::new(future::ok(
+                Response::builder().body(some_str.into()).unwrap(),
+            ))
+        }),
+    );
+    router.serve_files("/examples/*filepath", "examples");
+    let arc_router = Arc::new(router);
+
     let new_service = move || {
         // This is the `Service` that will handle the connection.
         // `service_fn_ok` is a helper to convert a function that
@@ -69,18 +86,9 @@ fn main() {
         // router.get("/some", |req, ps| {
         //     Box::new(future::ok(Response::new(Body::empty())))
         // });
-        let mut router: Router<Handler> = Router::new();
-        router.get("/", Box::new(get_echo));
-        router.post("/echo", Box::new(post_echo));
-        router.post("/echo/uppercase", Box::new(post_echo_uppercase));
-        router.post("/echo/reversed", Box::new(post_echo_reversed));
-        router.get("/some", Box::new(move |_, _| -> BoxFut {
-            Box::new(future::ok(
-                Response::builder().body(some_str.into()).unwrap(),
-            ))
-        }));
-        router.serve_files("/examples/*filepath", "examples");
-        router
+
+        let router = arc_router.clone();
+        service_fn(move |req| router.serve_http(req))
     };
 
     let server = Server::bind(&addr)

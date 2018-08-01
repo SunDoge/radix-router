@@ -5,8 +5,10 @@ extern crate radix_router;
 
 use futures::future;
 use hyper::rt::{self, Future};
+use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server};
-use radix_router::router::{BoxFut, Params, Router, Handler};
+use radix_router::router::{BoxFut, Handler, Params, Router};
+use std::sync::Arc;
 
 fn index(_: Request<Body>, _: Params) -> BoxFut {
     let res = Response::builder().body("welcome!\n".into()).unwrap();
@@ -26,15 +28,16 @@ fn main() {
     pretty_env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();
-
+    let mut router: Router<Handler> = Router::new();
+    router.get("/", Box::new(index));
+    router.get("/hello/:name", Box::new(hello));
+    let arc_router = Arc::new(router);
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
     let new_service = move || {
         // This is the `Service` that will handle the connection.
-        let mut router: Router<Handler> = Router::new();
-        router.get("/", Box::new(index));
-        router.get("/hello/:name", Box::new(hello));
-        router
+        let router = arc_router.clone();
+        service_fn(move |req| router.serve_http(req))
     };
 
     let server = Server::bind(&addr)
