@@ -1,5 +1,6 @@
 # Radix-Router
 [![Build Status](https://travis-ci.org/SunDoge/radix-router.svg?branch=master)](https://travis-ci.org/SunDoge/radix-router)
+[![Coverage Status](https://coveralls.io/repos/github/SunDoge/radix-router/badge.svg?branch=master)](https://coveralls.io/github/SunDoge/radix-router?branch=master)
 [![crates.io](http://meritbadge.herokuapp.com/radix-router)](https://crates.io/crates/radix-router)
 [![Released API docs](https://docs.rs/radix-router/badge.svg)](https://docs.rs/radix-router)
 
@@ -17,8 +18,10 @@ extern crate radix_router;
 
 use futures::future;
 use hyper::rt::{self, Future};
+use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server};
-use radix_router::router::{BoxFut, Params, Router, Handler};
+use radix_router::router::{BoxFut, Handler, Params, Router};
+use std::sync::Arc;
 
 fn index(_: Request<Body>, _: Params) -> BoxFut {
     let res = Response::builder().body("welcome!\n".into()).unwrap();
@@ -38,15 +41,16 @@ fn main() {
     pretty_env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();
-
+    let mut router: Router<Handler> = Router::new();
+    router.get("/", Box::new(index));
+    router.get("/hello/:name", Box::new(hello));
+    let arc_router = Arc::new(router);
     // new_service is run for each connection, creating a 'service'
     // to handle requests for that specific connection.
     let new_service = move || {
         // This is the `Service` that will handle the connection.
-        let mut router: Router<Handler> = Router::new();
-        router.get("/", Box::new(index));
-        router.get("/hello/:name", Box::new(hello));
-        router
+        let router = arc_router.clone();
+        service_fn(move |req| router.serve_http(req))
     };
 
     let server = Server::bind(&addr)
