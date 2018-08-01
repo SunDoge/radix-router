@@ -60,7 +60,7 @@ fn main() {
 ```
 
 ### Handler
-The handler can be a `fn` or `closure`. When using closure, you are able to capture outside parameters. For example:
+The handler can be anything. You can store a `T` and get an `Option<&T>`. Notice that `&T` is immutable. We offer a default `radix_router::router::Handler` which can be a `fn` or `closure`. When using closure, you are able to capture outside parameters. For example:
 
 ```rust 
 router.get("/", Box::new(get_echo));
