@@ -7,11 +7,14 @@ rust:
 
 cache: cargo
 
-before_script:
-  - |
-    pip install 'travis-cargo<0.2' --user &&
-    export PATH=$HOME/.local/bin:$PATH
+addons:
+  apt:
+    packages:
+      - kcov
 
 after_success:
   - |
-    travis-cargo --only stable coveralls --no-sudo
+    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/<executable name>-* &&
+    bash <(curl -s https://codecov.io/bash) &&
+    echo "Uploaded code coverage"
+
