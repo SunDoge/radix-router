@@ -47,7 +47,7 @@ fn post_echo_reversed(req: Request<Body>, _: Params) -> BoxFut {
         // *response.body_mut() = Body::from(body);
         // response
         Response::builder().body(Body::from(body)).unwrap()
-    });
+    }).map_err(|e| e.into());
     Box::new(reversed)
 }
 
