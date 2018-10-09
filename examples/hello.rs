@@ -9,14 +9,10 @@ use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server};
 use radix_router::router::{BoxFut, Handler, Params, Router};
 use std::sync::Arc;
-use std::fs::File;
-use std::io::prelude::*;
 
 fn index(_: Request<Body>, _: Params) -> BoxFut {
     let res = Response::builder().body("welcome!\n".into()).unwrap();
 
-    let mut f = File::open("not_exists");
-    
     Box::new(future::ok(res))
 }
 

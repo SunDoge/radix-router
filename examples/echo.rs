@@ -42,12 +42,16 @@ fn post_echo_uppercase(req: Request<Body>, _: Params) -> BoxFut {
 }
 
 fn post_echo_reversed(req: Request<Body>, _: Params) -> BoxFut {
-    let reversed = req.into_body().concat2().map(move |chunk| {
-        let body = chunk.iter().rev().cloned().collect::<Vec<u8>>();
-        // *response.body_mut() = Body::from(body);
-        // response
-        Response::builder().body(Body::from(body)).unwrap()
-    }).map_err(|e| e.into());
+    let reversed = req
+        .into_body()
+        .concat2()
+        .map(move |chunk| {
+            let body = chunk.iter().rev().cloned().collect::<Vec<u8>>();
+            // *response.body_mut() = Body::from(body);
+            // response
+            Response::builder().body(Body::from(body)).unwrap()
+        })
+        .map_err(|e| e.into());
     Box::new(reversed)
 }
 
