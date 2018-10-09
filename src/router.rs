@@ -1,6 +1,6 @@
 use futures::future;
 use hyper::rt::Future;
-use hyper::{self, Body, Method, Request, Response, StatusCode};
+use hyper::{Body, Method, Request, Response, StatusCode};
 use path::clean_path;
 use std::collections::BTreeMap;
 use std::ops::Index;
@@ -8,11 +8,12 @@ use std::path::Path;
 use tokio_fs;
 use tokio_io;
 use tree::Node;
+use std::error::Error as StdError;
 
 // TODO: think more about what a handler looks like
 // pub type Handle = fn(Request<Body>, Response<Body>, Option<Params>) -> BoxFut;
 // pub type ResponseFuture = Box<Future<Item=Response<Body>, Error=Error> + Send>;
-pub type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
+pub type BoxFut = Box<Future<Item = Response<Body>, Error = Box<dyn StdError + Sync + Send>> + Send>;
 
 pub trait Handle {
     fn handle(&self, req: Request<Body>, ps: Params) -> BoxFut;
