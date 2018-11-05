@@ -15,6 +15,7 @@ use std::error::Error as StdError;
 // pub type ResponseFuture = Box<Future<Item=Response<Body>, Error=Error> + Send>;
 pub type BoxFut = Box<Future<Item = Response<Body>, Error = Box<dyn StdError + Sync + Send>> + Send>;
 
+
 pub trait Handle {
     fn handle(&self, req: Request<Body>, ps: Params) -> BoxFut;
 }

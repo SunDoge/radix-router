@@ -8,3 +8,5 @@ extern crate tokio_io;
 pub mod path;
 pub mod router;
 pub mod tree;
+
+pub use router::{BoxFut, Router};
