@@ -1,4 +1,4 @@
-use router::{Param, Params};
+use crate::router::{Param, Params};
 // use std::fmt::Debug;
 use std::mem;
 use std::str;
@@ -847,7 +847,7 @@ fn rune_start(b: u8) -> bool {
 mod tests {
     use super::*;
     // use hyper::{Body, Request, Response};
-    use router::Params;
+    use crate::router::Params;
     use std::panic;
     use std::sync::Mutex;
 

@@ -1,13 +1,13 @@
 use futures::future;
 use hyper::rt::Future;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use path::clean_path;
+use crate::path::clean_path;
 use std::collections::BTreeMap;
 use std::ops::Index;
 use std::path::Path;
 use tokio_fs;
 use tokio_io;
-use tree::Node;
+use crate::tree::Node;
 use std::error::Error as StdError;
 
 // TODO: think more about what a handler looks like
@@ -581,7 +581,7 @@ fn simple_file_send(f: &str) -> BoxFut {
 mod tests {
     #[test]
     fn params() {
-        use router::{Param, Params};
+        use crate::router::{Param, Params};
 
         let params = Params(vec![
             Param {
@@ -604,7 +604,7 @@ mod tests {
         // use http::Response;
         use futures::future;
         use hyper::{Body, Request, Response};
-        use router::{BoxFut, Params, Router};
+        use crate::router::{BoxFut, Params, Router};
 
         let path = "something";
         let mut router = Router::new();
