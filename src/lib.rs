@@ -1,9 +1,9 @@
 //! # radix-router
 
-extern crate futures;
-extern crate hyper;
-extern crate tokio_fs;
-extern crate tokio_io;
+// extern crate futures;
+// extern crate hyper;
+// extern crate tokio_fs;
+// extern crate tokio_io;
 
 pub mod path;
 pub mod router;

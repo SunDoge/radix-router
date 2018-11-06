@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - Optimize `Params`.
 - Recommand using `Arc` to wrap `Router`.
+- 2018 edition
 
 ### Removed
 - `impl Service for Router`.

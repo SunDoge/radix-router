@@ -1275,7 +1275,7 @@ mod tests {
         let routes = vec!["/user:", "/user:/", "/cmd/:/", "/src/*"];
 
         for route in routes {
-            let mut recv = panic::catch_unwind(|| {
+            let recv = panic::catch_unwind(|| {
                 let mut guard = match tree.lock() {
                     Ok(guard) => guard,
                     Err(poisoned) => poisoned.into_inner(),
@@ -1317,7 +1317,7 @@ mod tests {
 
         for route in routes {
             let tree = Mutex::new(Node::new());
-            let mut recv = panic::catch_unwind(|| {
+            let recv = panic::catch_unwind(|| {
                 let mut guard = match tree.lock() {
                     Ok(guard) => guard,
                     Err(poisoned) => poisoned.into_inner(),
@@ -1363,7 +1363,7 @@ mod tests {
         ];
 
         for route in routes {
-            let mut recv = panic::catch_unwind(|| {
+            let recv = panic::catch_unwind(|| {
                 let mut guard = match tree.lock() {
                     Ok(guard) => guard,
                     Err(poisoned) => poisoned.into_inner(),
@@ -1394,7 +1394,7 @@ mod tests {
         ];
 
         for route in tsr_routes {
-            let mut guard = match tree.lock() {
+            let guard = match tree.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             };
@@ -1410,7 +1410,7 @@ mod tests {
         let no_tsr_routes = vec!["/", "/no", "/no/", "/_", "/_/", "/api/world/abc"];
 
         for route in no_tsr_routes {
-            let mut guard = match tree.lock() {
+            let guard = match tree.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             };
